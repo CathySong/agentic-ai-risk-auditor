@@ -11,12 +11,18 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
 
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema import SystemMessage, HumanMessage
+try:
+    # LangChain 1.x imports
+    from langchain_core.prompts import ChatPromptTemplate
+    from langchain_core.messages import SystemMessage, HumanMessage
+except ImportError:
+    # Fallback for older versions
+    from langchain_core.prompts import ChatPromptTemplate
+    from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from models.llm import LLMClient
+from models.llm_main import create_llm_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -72,7 +78,7 @@ class TaskPlanner:
     """Planner agent that breaks down audit requests into tasks."""
     
     def __init__(self, llm_client: Optional[LLMClient] = None):
-        self.llm_client = llm_client or LLMClient()
+        self.llm_client = llm_client or create_llm_client()
         self.planner_model = settings.agent.planner_model
         self.max_planning_steps = settings.agent.max_planning_steps
         

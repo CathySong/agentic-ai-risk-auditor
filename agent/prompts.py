@@ -5,8 +5,8 @@ Contains all prompt templates used by the agent system.
 """
 
 from typing import Dict, List, Any, Optional
-from langchain.prompts import ChatPromptTemplate, PromptTemplate
-from langchain.schema import SystemMessage, HumanMessage, AIMessage
+from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 
 class AuditPrompts:

@@ -16,8 +16,8 @@ import plotly.express as px
 
 from app.config import settings
 from agent.graph import RiskAuditGraph
-from agent.planner import AuditPlanner
-from agent.executor import AuditExecutor
+from agent.planner import TaskPlanner
+from agent.executor import TaskExecutor
 from tools.web_scraper import WebScraper
 from tools.contract_analyzer import ContractAnalyzer
 from rag.retriever import RAGRetriever, DocumentType

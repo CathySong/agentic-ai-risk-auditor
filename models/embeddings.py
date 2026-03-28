@@ -13,7 +13,7 @@ from sentence_transformers import SentenceTransformer
 import torch
 
 from app.config import settings
-from models.llm import LLMClient
+from models.llm_main import create_llm_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class EmbeddingModel:
         """Initialize the embedding model."""
         if self.model_type == EmbeddingModelType.OPENAI:
             # Use OpenAI API via LLM client
-            self.llm_client = LLMClient()
+            self.llm_client = create_llm_client()
             logger.info("Using OpenAI embeddings via API")
             
         elif self.model_type == EmbeddingModelType.SENTENCE_TRANSFORMERS:
@@ -65,7 +65,7 @@ class EmbeddingModel:
                 logger.error(f"Failed to load SentenceTransformer model: {e}")
                 # Fall back to OpenAI
                 self.model_type = EmbeddingModelType.OPENAI
-                self.llm_client = LLMClient()
+                self.llm_client = create_llm_client()
                 logger.info("Falling back to OpenAI embeddings")
                 
         elif self.model_type == EmbeddingModelType.LOCAL:

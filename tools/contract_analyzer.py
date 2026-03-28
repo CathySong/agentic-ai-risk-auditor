@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
-from models.llm import LLMClient
+from models.llm_main import create_llm_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -90,7 +90,7 @@ class ContractAnalyzer:
     """Analyzes contracts and legal documents for AI risk assessment."""
     
     def __init__(self):
-        self.llm_client = LLMClient()
+        self.llm_client = create_llm_client()
         
         # Define risk patterns and keywords
         self.risk_patterns = {

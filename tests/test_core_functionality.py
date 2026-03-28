@@ -20,7 +20,7 @@ from agent.executor import AuditExecutor
 from tools.web_scraper import WebScraper
 from tools.contract_analyzer import ContractAnalyzer, ContractType
 from rag.retriever import RAGRetriever, DocumentType
-from models.llm import LLMClient
+from models.llm_main import create_llm_client
 from models.embeddings import EmbeddingModel
 
 logging.basicConfig(level=logging.INFO)
@@ -103,7 +103,7 @@ class CoreFunctionalityTests:
         print("\n🤖 Test 2: LLM Models")
         try:
             # Initialize LLM client
-            llm_client = LLMClient()
+            llm_client = create_llm_client()
             
             # Test basic generation
             test_prompt = "What is AI risk assessment in one sentence?"
