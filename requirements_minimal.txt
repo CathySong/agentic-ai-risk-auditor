@@ -1,0 +1,21 @@
+# Minimal requirements for testing UI
+streamlit>=1.28.0
+plotly>=5.17.0
+pandas>=2.0.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+aiohttp>=3.9.0
+tenacity>=8.2.0
+numpy>=1.24.0
+
+# Optional - for full functionality (comment out for minimal test)
+# openai>=1.0.0
+# anthropic>=0.7.0
+# google-generativeai>=0.3.0
+# langchain>=0.0.340
+# langgraph>=0.0.10
+# chromadb>=0.4.18
+# sentence-transformers>=2.2.2
+# playwright>=1.40.0
