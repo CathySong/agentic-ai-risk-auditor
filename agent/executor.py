@@ -13,17 +13,18 @@ from dataclasses import dataclass
 from enum import Enum
 import uuid
 
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema import SystemMessage, HumanMessage, AIMessage
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from app.config import settings
-from models.llm import LLMClient
+from models.llm_main import create_llm_client
 from agent.planner import Task, TaskType, TaskPriority
 from tools.web_scraper import WebScraper
 from tools.contract_analyzer import ContractAnalyzer
 from tools.doc_parser import DocumentParser
 from tools.search import SearchEngine
-from rag.retriever import ComplianceRetriever
+from rag.retriever import RAGRetriever
+from rag.compliance_retriever import ComplianceRetriever
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ class TaskExecutor:
     """Executor agent that runs tasks using appropriate tools."""
     
     def __init__(self, llm_client: Optional[LLMClient] = None):
-        self.llm_client = llm_client or LLMClient()
+        self.llm_client = llm_client or create_llm_client()
         self.executor_model = settings.agent.executor_model
         self.max_execution_time = settings.agent.max_execution_time
         

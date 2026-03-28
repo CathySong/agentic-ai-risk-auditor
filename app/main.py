@@ -14,8 +14,8 @@ from .config import settings
 from agent.planner import TaskPlanner
 from agent.executor import TaskExecutor
 from agent.memory import AuditMemory
-from agent.graph import AuditWorkflow
-from rag.retriever import ComplianceRetriever
+from agent.graph import RiskAuditGraph
+from rag.compliance_retriever import ComplianceRetriever
 from models.llm import LLMClient
 from eval.evaluator import AuditEvaluator
 
@@ -57,7 +57,7 @@ class AgenticAIRiskAuditor:
         self.planner = TaskPlanner(llm_client=self.llm_client)
         self.executor = TaskExecutor(llm_client=self.llm_client)
         self.memory = AuditMemory()
-        self.workflow = AuditWorkflow(
+        self.workflow = RiskAuditGraph(
             planner=self.planner,
             executor=self.executor,
             memory=self.memory
