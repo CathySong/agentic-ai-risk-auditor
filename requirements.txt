@@ -1,11 +1,13 @@
 # Core dependencies
-python>=3.9
 fastapi>=0.104.0
-uvicorn>=0.24.0
+uvicorn[standard]>=0.24.0
 pydantic>=2.0.0
+python-dotenv>=1.0.0
 
-# AI/ML dependencies
+# AI/ML dependencies (optional - for real API usage)
 openai>=1.0.0
+anthropic>=0.7.0
+google-generativeai>=0.3.0
 langchain>=0.0.340
 langchain-openai>=0.0.2
 langchain-community>=0.0.10
@@ -13,45 +15,21 @@ langgraph>=0.0.10
 chromadb>=0.4.18
 sentence-transformers>=2.2.2
 
-# Web3/Blockchain
-web3>=6.0.0
-slither-analyzer>=0.9.0
-mythril>=0.23.28
-
-# Web scraping and data processing
+# Web scraping
 beautifulsoup4>=4.12.0
 requests>=2.31.0
 playwright>=1.40.0
-pdfplumber>=0.10.0
-pypdf>=3.17.0
-
-# Vector databases and embeddings
-pinecone-client>=3.0.0
-qdrant-client>=1.6.0
+aiohttp>=3.9.0
 
 # UI
 streamlit>=1.28.0
 plotly>=5.17.0
-altair>=5.2.0
+pandas>=2.0.0
 
 # Utilities
-python-dotenv>=1.0.0
 tenacity>=8.2.0
-tqdm>=4.66.0
-loguru>=0.7.0
-rich>=13.7.0
+numpy>=1.24.0
 
-# Testing and development
+# Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
-pytest-cov>=4.1.0
-black>=23.0.0
-isort>=5.12.0
-mypy>=1.7.0
-flake8>=6.1.0
-
-# Optional (for specific features)
-anthropic>=0.7.0
-cohere>=4.0.0
-google-generativeai>=0.3.0
-serpapi>=0.1.5
