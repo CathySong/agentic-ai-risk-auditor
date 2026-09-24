@@ -10,32 +10,51 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def test_imports():
-    """Test that all modules can be imported."""
+    """Test lightweight imports without requiring optional agent deps."""
     print("Testing imports...")
-    
-    modules_to_test = [
+
+    required_modules = [
         ("app.config", "settings"),
-        ("models.llm_main", "create_llm_client"),
         ("models.llm_mock", "MockLLMClient"),
-        ("tools.web_scraper", "WebScraper"),
         ("tools.contract_analyzer", "ContractAnalyzer"),
+    ]
+    optional_modules = [
+        ("models.llm_main", "create_llm_client"),
+        ("tools.web_scraper", "WebScraper"),
         ("rag.retriever", "RAGRetriever"),
         ("agent.graph", "RiskAuditGraph"),
         ("agent.planner", "AuditPlanner"),
         ("agent.executor", "AuditExecutor"),
     ]
-    
-    for module_name, attr_name in modules_to_test:
+
+    failures = 0
+
+    for module_name, attr_name in required_modules:
         try:
             module = __import__(module_name, fromlist=[attr_name])
             if hasattr(module, attr_name):
                 print(f"✅ {module_name}.{attr_name}")
             else:
                 print(f"❌ {module_name}.{attr_name} (not found)")
+                failures += 1
         except ImportError as e:
             print(f"❌ {module_name}.{attr_name} (ImportError: {e})")
+            failures += 1
         except Exception as e:
             print(f"❌ {module_name}.{attr_name} (Error: {e})")
+            failures += 1
+
+    print("\nOptional full-stack imports:")
+    for module_name, attr_name in optional_modules:
+        try:
+            module = __import__(module_name, fromlist=[attr_name])
+            print(f"✅ {module_name}.{attr_name}" if hasattr(module, attr_name) else f"⚠️  {module_name}.{attr_name} (not found)")
+        except ImportError as e:
+            print(f"⚠️  {module_name}.{attr_name} skipped ({e})")
+        except Exception as e:
+            print(f"⚠️  {module_name}.{attr_name} skipped ({e})")
+
+    return failures
 
 def test_config():
     """Test configuration loading."""
@@ -46,8 +65,10 @@ def test_config():
         print(f"   LLM mock mode: {settings.llm.use_mock}")
         print(f"   ChromaDB path: {settings.vectordb.chroma_db_path}")
         print(f"   Debug mode: {settings.debug}")
+        return 0
     except Exception as e:
         print(f"❌ Config error: {e}")
+        return 1
 
 def test_mock_llm():
     """Test mock LLM functionality."""
@@ -77,8 +98,10 @@ def test_mock_llm():
         embedding = asyncio.run(test_embed())
         print(f"✅ Mock embedding dimension: {len(embedding)}")
         
+        return 0
     except Exception as e:
         print(f"❌ Mock LLM error: {e}")
+        return 1
 
 def test_ui_structure():
     """Test UI module structure."""
@@ -98,14 +121,18 @@ def test_ui_structure():
             ("main function", "def main()" in content or "__name__ == \"__main__\"" in content),
         ]
         
+        failures = 0
         for check_name, check_passed in checks:
             if check_passed:
                 print(f"✅ {check_name}")
             else:
                 print(f"❌ {check_name}")
+                failures += 1
+        return failures
                 
     except Exception as e:
         print(f"❌ UI structure error: {e}")
+        return 1
 
 def check_dependencies():
     """Check required dependencies."""
@@ -118,7 +145,7 @@ def check_dependencies():
         ("pydantic", "Configuration"),
         ("aiohttp", "Async HTTP"),
         ("requests", "HTTP requests"),
-        ("beautifulsoup4", "HTML parsing"),
+        ("bs4", "HTML parsing"),
     ]
     
     for dep, description in dependencies:
@@ -134,10 +161,11 @@ def main():
     print("Agentic AI Risk Auditor - Simple Test")
     print("=" * 60)
     
-    test_imports()
-    test_config()
-    test_mock_llm()
-    test_ui_structure()
+    failures = 0
+    failures += test_imports()
+    failures += test_config()
+    failures += test_mock_llm()
+    failures += test_ui_structure()
     check_dependencies()
     
     print("\n" + "=" * 60)
@@ -147,6 +175,8 @@ def main():
     print("2. Run Streamlit UI: streamlit run ui/streamlit_app.py")
     print("3. Test with: python test_simple.py")
     print("=" * 60)
+    if failures:
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     main()
