@@ -92,3 +92,7 @@ For Staff Data Scientist and AI Engineer roles, this project highlights:
 ## Notes
 
 This is a portfolio-grade prototype, not legal advice or a replacement for a formal compliance review. It is designed to show system design, evaluation thinking, and practical AI engineering patterns.
+
+## Contact
+
+For collaboration or hiring conversations, contact Cathy at cathyismee@gmail.com.
