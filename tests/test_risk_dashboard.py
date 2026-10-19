@@ -4,6 +4,10 @@ import ast
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from app import audit_service
+
 
 def load_score_helpers():
     source = Path("ui/streamlit_app.py").read_text(encoding="utf-8")
@@ -33,3 +37,24 @@ def test_risk_labels_cover_the_full_scale():
     assert label(30)[0] == "Medium"
     assert label(70)[0] == "High"
     assert label(85)[0] == "Critical"
+
+
+def test_sample_report_uses_stable_100_point_contract():
+    report = audit_service.sample_report()
+    assert report["risk_scale"] == 100
+    assert report["overall_risk_score"] == 72
+    assert report["risk_level"] == "high"
+    assert report["schema_version"] == "1.0"
+    assert report["category_scores"]
+    assert report["findings"]
+    assert report["recommendations"]
+
+
+def test_private_hosts_are_rejected(monkeypatch):
+    monkeypatch.setattr(
+        audit_service.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [(None, None, None, None, ("127.0.0.1", 0))],
+    )
+    with pytest.raises(ValueError, match="private network"):
+        audit_service.audit_public_website("Local", "http://internal.example")

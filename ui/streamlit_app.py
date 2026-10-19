@@ -1,38 +1,27 @@
 #!/usr/bin/env python3
-"""
-Streamlit UI for the Agentic AI Risk Auditor.
-Provides web interface for risk assessment and analysis.
-"""
+"""Streamlit product MVP for the Agentic AI Risk Auditor."""
 
-import streamlit as st
-import asyncio
+from __future__ import annotations
+
 import html
 import json
-import logging
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+import sys
+from pathlib import Path
+from typing import Any, Dict
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
 
-from app.config import settings
-from agent.graph import RiskAuditGraph
-from agent.planner import TaskPlanner
-from agent.executor import TaskExecutor
-from tools.web_scraper import WebScraper
-from tools.contract_analyzer import ContractAnalyzer
-from rag.retriever import RAGRetriever, DocumentType
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from app.audit_service import audit_public_website, sample_report
 
 
 def normalize_risk_score(value: Any) -> float:
-    """Return a bounded risk score on a consistent 0-100 scale.
-
-    Older audit payloads stored scores between 0 and 1, while the core auditor
-    returns scores between 0 and 100. Supporting both keeps saved reports useful.
-    """
     try:
         score = float(value or 0)
     except (TypeError, ValueError):
@@ -43,7 +32,6 @@ def normalize_risk_score(value: Any) -> float:
 
 
 def risk_label(score: float) -> tuple[str, str]:
-    """Return the display label and color for a 0-100 risk score."""
     if score >= 85:
         return "Critical", "#dc2626"
     if score >= 70:
@@ -53,899 +41,169 @@ def risk_label(score: float) -> tuple[str, str]:
     return "Low", "#16a34a"
 
 
-class StreamlitApp:
-    """Streamlit web application for AI Risk Auditor."""
-    
-    def __init__(self):
-        self.setup_page_config()
-        self.initialize_session_state()
-        
-    def setup_page_config(self):
-        """Setup Streamlit page configuration."""
-        st.set_page_config(
-            page_title="Agentic AI Risk Auditor",
-            page_icon="🔍",
-            layout="wide",
-            initial_sidebar_state="expanded"
-        )
-    
-    def initialize_session_state(self):
-        """Initialize Streamlit session state."""
-        if 'audit_results' not in st.session_state:
-            st.session_state.audit_results = []
-        
-        if 'knowledge_base_docs' not in st.session_state:
-            st.session_state.knowledge_base_docs = []
-        
-        if 'current_audit' not in st.session_state:
-            st.session_state.current_audit = None
-        
-        if 'rag_retriever' not in st.session_state:
-            st.session_state.rag_retriever = None
-        
-        if 'audit_planner' not in st.session_state:
-            st.session_state.audit_planner = None
-        
-        if 'audit_executor' not in st.session_state:
-            st.session_state.audit_executor = None
-    
-    def run(self):
-        """Run the Streamlit application."""
-        # Sidebar
-        self.render_sidebar()
-        
-        # Main content
-        self.render_header()
-        
-        # Tab navigation
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "🏠 Dashboard",
-            "🔍 Risk Audit",
-            "📚 Knowledge Base",
-            "📊 Analytics",
-            "⚙️ Settings"
-        ])
-        
-        with tab1:
-            self.render_dashboard()
-        
-        with tab2:
-            self.render_risk_audit()
-        
-        with tab3:
-            self.render_knowledge_base()
-        
-        with tab4:
-            self.render_analytics()
-        
-        with tab5:
-            self.render_settings()
-    
-    def render_sidebar(self):
-        """Render the sidebar."""
-        with st.sidebar:
-            st.title("🔍 AI Risk Auditor")
-            st.markdown("---")
-            
-            # Quick actions
-            st.subheader("Quick Actions")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🔄 Refresh", use_container_width=True):
-                    st.rerun()
-            
-            with col2:
-                if st.button("📊 New Audit", use_container_width=True):
-                    st.session_state.current_audit = None
-                    st.rerun()
-            
-            # System status
-            st.markdown("---")
-            st.subheader("System Status")
-            
-            # Initialize components
-            if st.session_state.rag_retriever is None:
-                try:
-                    st.session_state.rag_retriever = RAGRetriever()
-                    st.success("✅ RAG Retriever initialized")
-                except Exception as e:
-                    st.error(f"❌ RAG Retriever failed: {e}")
-            
-            if st.session_state.audit_planner is None:
-                try:
-                    st.session_state.audit_planner = AuditPlanner()
-                    st.success("✅ Audit Planner initialized")
-                except Exception as e:
-                    st.error(f"❌ Audit Planner failed: {e}")
-            
-            if st.session_state.audit_executor is None:
-                try:
-                    st.session_state.audit_executor = AuditExecutor()
-                    st.success("✅ Audit Executor initialized")
-                except Exception as e:
-                    st.error(f"❌ Audit Executor failed: {e}")
-            
-            # Stats
-            if st.session_state.rag_retriever:
-                stats = st.session_state.rag_retriever.get_collection_stats()
-                st.metric("📚 Documents", stats.get("total_documents", 0))
-                st.metric("📊 Audits", len(st.session_state.audit_results))
-            
-            # About
-            st.markdown("---")
-            st.markdown("### About")
-            st.markdown("""
-            **Agentic AI Risk Auditor**
-            
-            Multi-agent system for automated AI risk assessment
-            and compliance auditing.
-            
-            Version: 1.0.0
-            """)
-    
-    def render_header(self):
-        """Render the main header."""
-        st.title("🔍 Agentic AI Risk Auditor")
-        st.markdown("""
-        **Multi-agent system for automated AI risk assessment and compliance auditing.**
-        
-        Assess AI systems for privacy, security, ethics, and regulatory compliance.
-        """)
-        
-        # Quick stats row
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Total Audits", len(st.session_state.audit_results))
-        
-        with col2:
-            if st.session_state.audit_results:
-                avg_risk = sum(normalize_risk_score(r.get("overall_risk_score", 0)) for r in st.session_state.audit_results) / len(st.session_state.audit_results)
-                st.metric("Avg Risk Score", f"{avg_risk:.1f} / 100")
-            else:
-                st.metric("Avg Risk Score", "0 / 100")
-        
-        with col3:
-            if st.session_state.rag_retriever:
-                stats = st.session_state.rag_retriever.get_collection_stats()
-                st.metric("Knowledge Docs", stats.get("total_documents", 0))
-            else:
-                st.metric("Knowledge Docs", "0")
-        
-        with col4:
-            high_risk = sum(1 for r in st.session_state.audit_results if normalize_risk_score(r.get("overall_risk_score", 0)) >= 70)
-            st.metric("High Risk Audits", high_risk)
-    
-    def render_dashboard(self):
-        """Render the dashboard tab."""
-        st.header("📊 Dashboard")
-        
-        if not st.session_state.audit_results:
-            st.info("No audit results yet. Start your first audit in the 'Risk Audit' tab.")
-            return
-        
-        # Recent audits
-        st.subheader("Recent Audits")
-        recent_audits = st.session_state.audit_results[-5:]  # Last 5 audits
-        
-        for audit in reversed(recent_audits):
-            with st.expander(f"🔍 {audit.get('target_name', 'Unknown')} - {audit.get('timestamp', '')}"):
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    risk_score = normalize_risk_score(audit.get("overall_risk_score", 0))
-                    level, _ = risk_label(risk_score)
-                    risk_level = {"Low": "🟢 Low", "Medium": "🟡 Medium", "High": "🟠 High", "Critical": "🔴 Critical"}[level]
-                    st.metric("Risk Level", risk_level)
-                
-                with col2:
-                    st.metric("Risk Score", f"{risk_score:.1f} / 100")
-                
-                with col3:
-                    findings = audit.get("findings", [])
-                    st.metric("Findings", len(findings))
-                
-                # Quick summary
-                st.markdown("**Summary:**")
-                st.markdown(audit.get("summary", "No summary available.")[:200] + "...")
-                
-                if st.button("View Details", key=f"view_{audit.get('id', '')}"):
-                    st.session_state.current_audit = audit
-                    st.rerun()
-        
-        # Risk score distribution
-        st.subheader("Risk Score Distribution")
-        
-        if len(st.session_state.audit_results) > 1:
-            risk_scores = [normalize_risk_score(r.get("overall_risk_score", 0)) for r in st.session_state.audit_results]
-            
-            fig = go.Figure(data=[go.Histogram(x=risk_scores, nbinsx=10)])
-            fig.update_layout(
-                title="Distribution of Risk Scores",
-                xaxis_title="Risk Score (0-100)",
-                yaxis_title="Count",
-                showlegend=False
+def inject_styles() -> None:
+    st.markdown(
+        """
+        <style>
+        .block-container {max-width: 1180px; padding-top: 2.2rem; padding-bottom: 4rem}
+        [data-testid="stHeader"] {background: rgba(255,255,255,.78); backdrop-filter: blur(14px)}
+        .hero {padding:2.2rem 2.4rem;border-radius:24px;background:linear-gradient(135deg,#07111f,#132846);color:white;margin-bottom:1.4rem;box-shadow:0 18px 50px rgba(15,23,42,.16)}
+        .hero .kicker {font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:#7dd3fc;font-weight:700}
+        .hero h1 {font-size:clamp(2.2rem,5vw,4.5rem);line-height:1;margin:.5rem 0 1rem;letter-spacing:-.04em}
+        .hero p {max-width:760px;color:#cbd5e1;font-size:1.08rem;line-height:1.65;margin:0}
+        .report-label {font-size:.76rem;letter-spacing:.11em;text-transform:uppercase;color:#64748b;font-weight:700;margin-top:1.8rem}
+        .summary {border:1px solid #e2e8f0;border-left:5px solid #2563eb;border-radius:14px;padding:1rem 1.15rem;background:#f8fafc;margin:.5rem 0 1.2rem;line-height:1.65}
+        .finding {border:1px solid #e2e8f0;border-radius:14px;padding:1rem 1.1rem;margin:.7rem 0;background:white}
+        .finding-title {font-weight:750;color:#0f172a}
+        .finding-meta {font-size:.78rem;color:#64748b;margin-top:.2rem;text-transform:uppercase;letter-spacing:.04em}
+        .disclaimer {font-size:.8rem;color:#64748b;border-top:1px solid #e2e8f0;padding-top:1rem;margin-top:2rem}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_dashboard(report: Dict[str, Any]) -> None:
+    score = normalize_risk_score(report.get("overall_risk_score", report.get("risk_score", 0)))
+    level, color = risk_label(score)
+    findings = report.get("findings", []) or []
+    recommendations = report.get("recommendations", []) or []
+    high_count = sum(1 for item in findings if str(item.get("severity", item.get("risk_level", ""))).lower() in {"high", "critical"})
+
+    st.markdown('<div class="report-label">Audit report dashboard</div>', unsafe_allow_html=True)
+    st.subheader(report.get("target_name", "Audit result"))
+    cols = st.columns(4)
+    cols[0].metric("Total Risk Score", f"{score:.1f} / 100")
+    cols[1].metric("Risk Level", level)
+    cols[2].metric("High / Critical", high_count)
+    cols[3].metric("Findings", len(findings))
+
+    summary = report.get("executive_summary", report.get("summary", "No summary available."))
+    safe_summary = html.escape(str(summary)).replace("\n", "<br>")
+    st.markdown(f'<div class="summary"><strong>Executive summary</strong><br>{safe_summary}</div>', unsafe_allow_html=True)
+
+    gauge_col, severity_col = st.columns([1.2, 1])
+    gauge = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        number={"suffix": " / 100", "font": {"size": 38}},
+        title={"text": f"{level} risk"},
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar": {"color": color},
+            "steps": [
+                {"range": [0, 30], "color": "#dcfce7"},
+                {"range": [30, 70], "color": "#fef9c3"},
+                {"range": [70, 85], "color": "#ffedd5"},
+                {"range": [85, 100], "color": "#fee2e2"},
+            ],
+            "threshold": {"line": {"color": color, "width": 4}, "thickness": .75, "value": score},
+        },
+    ))
+    gauge.update_layout(height=320, margin=dict(l=20, r=20, t=55, b=20))
+    with gauge_col:
+        st.plotly_chart(gauge, use_container_width=True)
+
+    severity_names = ["Critical", "High", "Medium", "Low"]
+    severity_values = [sum(1 for item in findings if str(item.get("severity", item.get("risk_level", "low"))).capitalize() == name) for name in severity_names]
+    with severity_col:
+        if sum(severity_values):
+            chart = px.pie(
+                names=severity_names,
+                values=severity_values,
+                hole=.62,
+                color=severity_names,
+                color_discrete_map={"Critical": "#dc2626", "High": "#ea580c", "Medium": "#ca8a04", "Low": "#16a34a"},
+                title="Findings by severity",
             )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Risk by category
-        st.subheader("Risk by Category")
-        
-        if st.session_state.audit_results:
-            categories = ["privacy", "security", "compliance", "ethics"]
-            category_scores = {cat: [] for cat in categories}
-            
-            for audit in st.session_state.audit_results:
-                analysis = audit.get("analysis", {})
-                for cat in categories:
-                    if cat in analysis:
-                        category_scores[cat].append(normalize_risk_score(analysis[cat].get("risk_score", 0)))
-            
-            avg_scores = {cat: sum(scores)/len(scores) if scores else 0 
-                         for cat, scores in category_scores.items()}
-            
-            df = pd.DataFrame({
-                "Category": list(avg_scores.keys()),
-                "Average Risk Score": list(avg_scores.values())
-            })
-            
-            fig = px.bar(df, x="Category", y="Average Risk Score", 
-                        color="Average Risk Score",
-                        color_continuous_scale="RdYlGn_r")
-            fig.update_layout(showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
-    
-    def render_risk_audit(self):
-        """Render the risk audit tab."""
-        st.header("🔍 Risk Audit")
-        
-        # Audit creation form
-        with st.form("audit_form"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                audit_type = st.selectbox(
-                    "Audit Type",
-                    ["Website", "API", "Mobile App", "AI Model", "Data Pipeline", "Custom"]
-                )
-                
-                target_name = st.text_input("Target Name", placeholder="e.g., Example AI Service")
-                
-                target_url = st.text_input("Target URL", placeholder="https://example.com")
-            
-            with col2:
-                audit_scope = st.multiselect(
-                    "Audit Scope",
-                    ["Privacy", "Security", "Compliance", "Ethics", "Performance", "Transparency"],
-                    default=["Privacy", "Security", "Compliance"]
-                )
-                
-                priority = st.select_slider(
-                    "Priority",
-                    options=["Low", "Medium", "High", "Critical"],
-                    value="Medium"
-                )
-            
-            # Advanced options
-            with st.expander("Advanced Options"):
-                col3, col4 = st.columns(2)
-                
-                with col3:
-                    use_web_scraping = st.checkbox("Enable Web Scraping", value=True)
-                    use_contract_analysis = st.checkbox("Enable Contract Analysis", value=True)
-                
-                with col4:
-                    max_depth = st.slider("Max Scraping Depth", 1, 5, 2)
-                    timeout = st.slider("Timeout (seconds)", 30, 300, 60)
-            
-            # Submit button
-            submitted = st.form_submit_button("🚀 Start Audit", use_container_width=True)
-            
-            if submitted:
-                if not target_name:
-                    st.error("Please provide a target name.")
-                else:
-                    self.run_audit({
-                        "audit_type": audit_type,
-                        "target_name": target_name,
-                        "target_url": target_url if target_url else None,
-                        "audit_scope": audit_scope,
-                        "priority": priority,
-                        "use_web_scraping": use_web_scraping,
-                        "use_contract_analysis": use_contract_analysis,
-                        "max_depth": max_depth,
-                        "timeout": timeout
-                    })
-        
-        # Display current audit if exists
-        if st.session_state.current_audit:
-            self.render_audit_details(st.session_state.current_audit)
-    
-    async def _run_audit_async(self, audit_params: Dict[str, Any]) -> Dict[str, Any]:
-        """Run audit asynchronously."""
-        try:
-            # Create audit plan
-            plan = await st.session_state.audit_planner.create_plan(audit_params)
-            
-            # Execute audit
-            results = await st.session_state.audit_executor.execute_plan(plan)
-            
-            # Process results through graph
-            graph = RiskAuditGraph()
-            final_results = await graph.process_results(results)
-            
-            # Add metadata
-            final_results.update({
-                "id": f"audit_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                "timestamp": datetime.now().isoformat(),
-                "params": audit_params
-            })
-            
-            return final_results
-            
-        except Exception as e:
-            logger.error(f"Audit failed: {e}")
-            return {
-                "error": str(e),
-                "id": f"audit_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                "timestamp": datetime.now().isoformat(),
-                "params": audit_params
-            }
-    
-    def run_audit(self, audit_params: Dict[str, Any]):
-        """Run audit and display results."""
-        with st.spinner("🚀 Running audit..."):
-            # Run async audit
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            try:
-                results = loop.run_until_complete(self._run_audit_async(audit_params))
-                
-                # Store results
-                st.session_state.audit_results.append(results)
-                st.session_state.current_audit = results
-                
-                # Display success
-                st.success(f"✅ Audit completed: {results.get('target_name', 'Unknown')}")
-                
-                # Rerun to show results
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"❌ Audit failed: {e}")
-            finally:
-                loop.close()
-    
-    def render_audit_details(self, audit: Dict[str, Any]):
-        """Render detailed audit results."""
-        st.header(f"📋 Audit Results: {audit.get('target_name', 'Unknown')}")
-
-        self.render_output_dashboard(audit)
-
-        # Detailed findings
-        st.subheader("Detailed Findings")
-
-        findings = audit.get("findings", [])
-        if findings:
-            for i, finding in enumerate(findings, 1):
-                with st.expander(f"🔍 Finding {i}: {finding.get('title', 'Unknown')}"):
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        risk_level = finding.get("risk_level", finding.get("severity", "unknown"))
-                        risk_color = {
-                            "low": "🟢",
-                            "medium": "🟡", 
-                            "high": "🟠",
-                            "critical": "🔴"
-                        }.get(str(risk_level).lower(), "⚪")
-
-                        st.markdown(f"**Risk Level:** {risk_color} {str(risk_level).upper()}")
-                        st.markdown(f"**Category:** {finding.get('category', 'Unknown')}")
-
-                    with col2:
-                        st.markdown(f"**Source:** {finding.get('source', 'Unknown')}")
-                        if finding.get("evidence"):
-                            st.markdown(f"**Evidence:** {finding['evidence'][:100]}...")
-
-                    st.markdown("**Description:**")
-                    st.markdown(finding.get("description", "No description available."))
-
-                    if finding.get("recommendations"):
-                        st.markdown("**Recommendations:**")
-                        for rec in finding["recommendations"]:
-                            st.markdown(f"- {rec}")
+            chart.update_layout(height=320, margin=dict(l=20, r=20, t=55, b=20))
+            st.plotly_chart(chart, use_container_width=True)
         else:
-            st.info("No detailed findings were returned for this audit.")
+            st.success("No risk findings were generated.")
 
-        # Recommendations
-        st.subheader("Recommendations")
+    category_scores = report.get("category_scores") or {
+        key: normalize_risk_score(value.get("risk_score", 0))
+        for key, value in (report.get("analysis", {}) or {}).items()
+        if isinstance(value, dict)
+    }
+    if category_scores:
+        data = pd.DataFrame({"Category": [key.title() for key in category_scores], "Risk Score": [normalize_risk_score(value) for value in category_scores.values()]})
+        category_chart = px.bar(data, x="Risk Score", y="Category", orientation="h", color="Risk Score", color_continuous_scale="RdYlGn_r", range_color=[0, 100], title="Risk score by category")
+        category_chart.update_xaxes(range=[0, 100], title="Risk Score (0-100)")
+        category_chart.update_layout(height=max(300, len(data) * 70), coloraxis_showscale=False)
+        st.plotly_chart(category_chart, use_container_width=True)
 
-        recommendations = audit.get("recommendations", [])
-        if recommendations:
-            for i, rec in enumerate(recommendations, 1):
-                if isinstance(rec, dict):
-                    st.markdown(f"{i}. **{rec.get('title', 'Recommendation')}**")
-                    st.markdown(f"   Priority: {rec.get('priority', 'Medium')}")
-                    st.markdown(f"   {rec.get('description', '')}")
-                else:
-                    st.markdown(f"{i}. {rec}")
-                st.markdown("---")
+    st.subheader("Prioritized findings")
+    if findings:
+        for index, finding in enumerate(findings, 1):
+            title = html.escape(str(finding.get("title", f"Finding {index}")))
+            severity = html.escape(str(finding.get("severity", finding.get("risk_level", "unknown"))).upper())
+            category = html.escape(str(finding.get("category", "other")).upper())
+            points = finding.get("risk_points")
+            points_text = f" · +{points} RISK POINTS" if points is not None else ""
+            st.markdown(f'<div class="finding"><div class="finding-title">{index}. {title}</div><div class="finding-meta">{severity} · {category}{points_text}</div></div>', unsafe_allow_html=True)
+            with st.expander("Evidence and remediation", expanded=index <= 2):
+                st.write(finding.get("description", "No description available."))
+                st.markdown(f"**Evidence:** {finding.get('evidence', 'Not provided.')}")
+                st.markdown(f"**Recommended action:** {finding.get('recommendation', 'Review the finding and define an owner.')}")
+    else:
+        st.success("No observable gaps were found in this automated public-surface review.")
+
+    st.subheader("Remediation plan")
+    for index, item in enumerate(recommendations, 1):
+        if isinstance(item, dict):
+            st.markdown(f"{index}. **{item.get('title', 'Recommendation')}** - {item.get('description', '')}")
         else:
-            st.info("No specific recommendations available.")
+            st.markdown(f"{index}. {item}")
 
-        self.render_export_options(audit)
+    json_payload = json.dumps(report, indent=2, default=str)
+    findings_csv = pd.DataFrame(findings).to_csv(index=False) if findings else ""
+    export_a, export_b = st.columns(2)
+    export_a.download_button("Download full report (JSON)", json_payload, file_name=f"{report.get('id', 'audit')}.json", mime="application/json", use_container_width=True)
+    export_b.download_button("Download findings (CSV)", findings_csv, file_name=f"{report.get('id', 'audit')}_findings.csv", mime="text/csv", disabled=not findings, use_container_width=True)
+    st.markdown(f'<div class="disclaimer">Methodology v{html.escape(str(report.get("methodology_version", "1.0")))} · {html.escape(str(report.get("disclaimer", "Automated assessment only.")))}</div>', unsafe_allow_html=True)
 
-    def render_output_dashboard(self, audit: Dict[str, Any]):
-        """Render a decision-ready dashboard for one completed audit."""
-        findings = audit.get("findings", []) or []
-        recommendations = audit.get("recommendations", []) or []
-        risk_score = normalize_risk_score(audit.get("overall_risk_score", audit.get("risk_score", 0)))
-        level, level_color = risk_label(risk_score)
-        high_risk = sum(
-            1 for finding in findings
-            if str(finding.get("risk_level", finding.get("severity", ""))).lower() in {"high", "critical"}
-        )
 
-        st.markdown(
-            """
-            <style>
-            .audit-output-title {font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:.2rem}
-            .audit-output-summary {border:1px solid #e2e8f0;border-radius:14px;padding:1rem 1.1rem;background:#f8fafc;margin:.4rem 0 1.2rem}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="audit-output-title">Audit report dashboard</div>', unsafe_allow_html=True)
+def main() -> None:
+    st.set_page_config(page_title="AI Risk Auditor", page_icon="🛡️", layout="wide", initial_sidebar_state="collapsed")
+    inject_styles()
+    st.markdown(
+        """
+        <section class="hero">
+          <div class="kicker">Agentic AI Risk Auditor</div>
+          <h1>Turn AI risk into<br>a decision-ready score.</h1>
+          <p>Review public security, privacy, transparency, and compliance signals. Get a prioritized 0-100 risk report with evidence and remediation steps.</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Risk Score", f"{risk_score:.1f} / 100")
-        with col2:
-            st.metric("Risk Level", level)
-        with col3:
-            st.metric("High / Critical", high_risk)
-        with col4:
-            st.metric("Recommendations", len(recommendations))
+    with st.form("audit_form"):
+        st.subheader("Run a public-surface audit")
+        col_a, col_b = st.columns(2)
+        target_name = col_a.text_input("Product or system name", placeholder="Acme Support Copilot")
+        target_url = col_b.text_input("Public website", placeholder="https://example.com")
+        description = st.text_area("How does the system use AI?", placeholder="Customer-support assistant that retrieves account data and drafts responses.", height=90)
+        submitted = st.form_submit_button("Run risk audit", type="primary", use_container_width=True)
 
-        summary = audit.get("executive_summary", audit.get("summary", "No executive summary available."))
-        safe_summary = html.escape(str(summary)).replace("\n", "<br>")
-        st.markdown(f'<div class="audit-output-summary"><strong>Executive summary</strong><br>{safe_summary}</div>', unsafe_allow_html=True)
+    demo_col, note_col = st.columns([1, 3])
+    if demo_col.button("View sample report", use_container_width=True):
+        st.session_state.audit_report = sample_report()
+    note_col.caption("The MVP checks observable public signals. It does not access private systems or perform penetration testing.")
 
-        gauge_col, severity_col = st.columns([1.25, 1])
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=risk_score,
-            domain={'x': [0, 1], 'y': [0, 1]},
-            number={'suffix': " / 100", 'font': {'size': 40}},
-            title={'text': f"{level} risk"},
-            gauge={
-                'axis': {'range': [0, 100]},
-                'bar': {'color': level_color},
-                'steps': [
-                    {'range': [0, 30], 'color': "#dcfce7"},
-                    {'range': [30, 70], 'color': "#fef9c3"},
-                    {'range': [70, 85], 'color': "#ffedd5"},
-                    {'range': [85, 100], 'color': "#fee2e2"}
-                ],
-                'threshold': {
-                    'line': {'color': level_color, 'width': 4},
-                    'thickness': 0.75,
-                    'value': risk_score
-                }
-            }
-        ))
-        fig.update_layout(height=320, margin=dict(l=20, r=20, t=55, b=20))
-        with gauge_col:
-            st.plotly_chart(fig, use_container_width=True)
-
-        severity_counts = {level_name: 0 for level_name in ["Critical", "High", "Medium", "Low"]}
-        for finding in findings:
-            severity = str(finding.get("risk_level", finding.get("severity", "low"))).capitalize()
-            if severity in severity_counts:
-                severity_counts[severity] += 1
-        severity_fig = px.pie(
-            names=list(severity_counts.keys()),
-            values=list(severity_counts.values()),
-            hole=.62,
-            color=list(severity_counts.keys()),
-            color_discrete_map={"Critical": "#dc2626", "High": "#ea580c", "Medium": "#ca8a04", "Low": "#16a34a"},
-            title="Findings by severity",
-        )
-        severity_fig.update_layout(height=320, margin=dict(l=20, r=20, t=55, b=20), showlegend=True)
-        with severity_col:
-            if findings:
-                st.plotly_chart(severity_fig, use_container_width=True)
-            else:
-                st.info("No findings available for a severity breakdown.")
-
-        analysis = audit.get("analysis", {}) or {}
-        if analysis:
-            categories = list(analysis.keys())
-            scores = [normalize_risk_score(analysis[cat].get("risk_score", 0)) for cat in categories]
-            df = pd.DataFrame({
-                "Category": categories,
-                "Risk Score": scores
-            })
-            category_fig = px.bar(
-                df, x="Risk Score", y="Category", orientation="h", color="Risk Score",
-                color_continuous_scale="RdYlGn_r", range_color=[0, 100],
-                title="Risk score by category",
-            )
-            category_fig.update_xaxes(range=[0, 100], title="Risk Score (0-100)")
-            category_fig.update_layout(height=max(300, 70 * len(categories)), coloraxis_showscale=False)
-            st.plotly_chart(category_fig, use_container_width=True)
-
-    def render_export_options(self, audit: Dict[str, Any]):
-        """Render report download actions."""
-        st.subheader("Export Results")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("📄 Export as JSON", use_container_width=True):
-                json_str = json.dumps(audit, indent=2, default=str)
-                st.download_button(
-                    label="Download JSON",
-                    data=json_str,
-                    file_name=f"audit_{audit.get('id', 'results')}.json",
-                    mime="application/json"
-                )
-        
-        with col2:
-            if st.button("📊 Export as CSV", use_container_width=True):
-                # Convert findings to CSV
-                findings = audit.get("findings", [])
-                if findings:
-                    df = pd.DataFrame(findings)
-                    csv = df.to_csv(index=False)
-                    st.download_button(
-                        label="Download CSV",
-                        data=csv,
-                        file_name=f"audit_findings_{audit.get('id', 'results')}.csv",
-                        mime="text/csv"
-                    )
-        
-        with col3:
-            if st.button("📋 Copy Summary", use_container_width=True):
-                summary = audit.get("summary", "No summary available.")
-                st.code(summary, language="text")
-    
-    def render_knowledge_base(self):
-        """Render the knowledge base tab."""
-        st.header("📚 Knowledge Base")
-        
-        # Add documents section
-        with st.expander("➕ Add Documents to Knowledge Base"):
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                doc_text = st.text_area(
-                    "Document Text",
-                    height=200,
-                    placeholder="Paste document text here..."
-                )
-            
-            with col2:
-                doc_type = st.selectbox(
-                    "Document Type",
-                    [dt.value for dt in DocumentType]
-                )
-                
-                source = st.text_input("Source", placeholder="e.g., GDPR Article 5")
-                
-                tags = st.text_input("Tags (comma-separated)", placeholder="privacy, compliance, eu")
-            
-            if st.button("Add Document", use_container_width=True):
-                if doc_text and doc_type:
-                    document = {
-                        "text": doc_text,
-                        "metadata": {
-                            "document_type": doc_type,
-                            "source": source,
-                            "tags": [tag.strip() for tag in tags.split(",")] if tags else [],
-                            "added_by": "streamlit_ui",
-                            "added_at": datetime.now().isoformat()
-                        }
-                    }
-                    
-                    if st.session_state.rag_retriever:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        
-                        try:
-                            result = loop.run_until_complete(
-                                st.session_state.rag_retriever.add_documents([document])
-                            )
-                            st.success(f"✅ Added {result['added']} document(s)")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Failed to add document: {e}")
-                        finally:
-                            loop.close()
-                    else:
-                        st.error("RAG retriever not initialized")
-        
-        # Search knowledge base
-        st.subheader("🔍 Search Knowledge Base")
-        
-        search_query = st.text_input("Search query", placeholder="Enter search terms...")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            n_results = st.slider("Results limit", 1, 20, 5)
-        
-        with col2:
-            doc_type_filter = st.multiselect(
-                "Filter by type",
-                [dt.value for dt in DocumentType],
-                default=[]
-            )
-        
-        if st.button("Search", use_container_width=True) and search_query:
-            if st.session_state.rag_retriever:
-                # Prepare search parameters
-                params = {"n_results": n_results}
-                
-                if doc_type_filter:
-                    params["where_filter"] = {
-                        "document_type": {"$in": doc_type_filter}
-                    }
-                
-                # Run search
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
+    if submitted:
+        if not target_name.strip() or not target_url.strip():
+            st.error("Enter both a product name and a public website.")
+        else:
+            with st.spinner("Reading the public page and calculating risk…"):
                 try:
-                    with st.spinner("Searching..."):
-                        result = loop.run_until_complete(
-                            st.session_state.rag_retriever.search(search_query, params)
-                        )
-                    
-                    # Display results
-                    st.subheader(f"Search Results ({result.total_results})")
-                    
-                    for i, doc in enumerate(result.documents, 1):
-                        with st.expander(f"📄 Result {i}: Score {doc.score:.3f}"):
-                            st.markdown(f"**Type:** {doc.metadata.get('document_type', 'Unknown')}")
-                            st.markdown(f"**Source:** {doc.metadata.get('source', 'Unknown')}")
-                            st.markdown(f"**Added:** {doc.metadata.get('added_at', 'Unknown')}")
-                            
-                            st.markdown("**Content:**")
-                            st.markdown(doc.text)
-                            
-                            if doc.metadata.get("tags"):
-                                st.markdown("**Tags:** " + ", ".join(doc.metadata["tags"]))
-                    
-                except Exception as e:
-                    st.error(f"❌ Search failed: {e}")
-                finally:
-                    loop.close()
-            else:
-                st.error("RAG retriever not initialized")
-        
-        # Knowledge base statistics
-        st.subheader("📊 Knowledge Base Statistics")
-        
-        if st.session_state.rag_retriever:
-            stats = st.session_state.rag_retriever.get_collection_stats()
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Total Documents", stats.get("total_documents", 0))
-            
-            with col2:
-                st.metric("Storage Type", stats.get("storage_type", "Unknown"))
-            
-            with col3:
-                st.metric("Embedding Dim", stats.get("embedding_dimension", 0))
-            
-            # Document type distribution
-            doc_types = stats.get("document_types", {})
-            if doc_types:
-                df = pd.DataFrame({
-                    "Document Type": list(doc_types.keys()),
-                    "Count": list(doc_types.values())
-                })
-                
-                fig = px.pie(df, values="Count", names="Document Type", 
-                            title="Document Type Distribution")
-                st.plotly_chart(fig, use_container_width=True)
-    
-    def render_analytics(self):
-        """Render the analytics tab."""
-        st.header("📊 Analytics")
-        
-        if not st.session_state.audit_results:
-            st.info("No audit data available for analytics.")
-            return
-        
-        # Convert audit results to DataFrame
-        audits_df = pd.DataFrame(st.session_state.audit_results)
-        
-        # Time series of risk scores
-        st.subheader("Risk Score Trends")
-        
-        if "timestamp" in audits_df.columns:
-            audits_df["timestamp"] = pd.to_datetime(audits_df["timestamp"])
-            audits_df = audits_df.sort_values("timestamp")
-            
-            fig = px.line(audits_df, x="timestamp", y="overall_risk_score",
-                         title="Risk Score Over Time",
-                         markers=True)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Risk score distribution
-        st.subheader("Risk Score Distribution")
-        
-        fig = px.histogram(audits_df, x="overall_risk_score", 
-                          nbins=10, title="Distribution of Risk Scores")
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Audit type analysis
-        st.subheader("Audit Type Analysis")
-        
-        if "params" in audits_df.columns:
-            # Extract audit types
-            audit_types = []
-            for params in audits_df["params"]:
-                if isinstance(params, dict):
-                    audit_types.append(params.get("audit_type", "Unknown"))
-                else:
-                    audit_types.append("Unknown")
-            
-            type_counts = pd.Series(audit_types).value_counts()
-            
-            fig = px.bar(x=type_counts.index, y=type_counts.values,
-                        title="Audits by Type",
-                        labels={"x": "Audit Type", "y": "Count"})
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Risk heatmap by category
-        st.subheader("Risk Heatmap by Category")
-        
-        # Extract category scores
-        categories = ["privacy", "security", "compliance", "ethics"]
-        category_data = []
-        
-        for audit in st.session_state.audit_results:
-            analysis = audit.get("analysis", {})
-            for cat in categories:
-                if cat in analysis:
-                    category_data.append({
-                        "audit": audit.get("target_name", "Unknown"),
-                        "category": cat,
-                        "score": analysis[cat].get("risk_score", 0)
-                    })
-        
-        if category_data:
-            heatmap_df = pd.DataFrame(category_data)
-            pivot_df = heatmap_df.pivot(index="audit", columns="category", values="score")
-            
-            fig = px.imshow(pivot_df, color_continuous_scale="RdYlGn_r",
-                           title="Risk Scores by Audit and Category")
-            st.plotly_chart(fig, use_container_width=True)
-    
-    def render_settings(self):
-        """Render the settings tab."""
-        st.header("⚙️ Settings")
-        
-        # Model settings
-        st.subheader("Model Settings")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            llm_provider = st.selectbox(
-                "LLM Provider",
-                ["openai", "anthropic", "google", "cohere"],
-                index=0
-            )
-        
-        with col2:
-            embedding_model = st.selectbox(
-                "Embedding Model",
-                ["text-embedding-3-small", "text-embedding-3-large", "all-MiniLM-L6-v2"],
-                index=0
-            )
-        
-        # Vector database settings
-        st.subheader("Vector Database")
-        
-        chroma_path = st.text_input(
-            "ChromaDB Path",
-            value=settings.vectordb.chroma_db_path,
-            help="Path to store ChromaDB database"
-        )
-        
-        collection_name = st.text_input(
-            "Collection Name",
-            value=settings.vectordb.default_collection,
-            help="Name of the document collection"
-        )
-        
-        # Search settings
-        st.subheader("Search Settings")
-        
-        col3, col4 = st.columns(2)
-        
-        with col3:
-            search_limit = st.slider(
-                "Search Results Limit",
-                min_value=1,
-                max_value=50,
-                value=settings.vectordb.search_results_limit
-            )
-        
-        with col4:
-            context_size = st.slider(
-                "Context Size Limit (tokens)",
-                min_value=100,
-                max_value=10000,
-                value=settings.vectordb.context_size_limit,
-                step=100
-            )
-        
-        # System settings
-        st.subheader("System Settings")
-        
-        debug_mode = st.checkbox("Enable Debug Mode", value=False)
-        log_level = st.selectbox(
-            "Log Level",
-            ["DEBUG", "INFO", "WARNING", "ERROR"],
-            index=1
-        )
-        
-        # Save settings
-        if st.button("💾 Save Settings", use_container_width=True):
-            # Note: In a real app, these would be saved to a config file
-            st.success("Settings saved (note: requires app restart to take effect)")
-            
-            # Display settings summary
-            st.info(f"""
-            **Settings Summary:**
-            - LLM Provider: {llm_provider}
-            - Embedding Model: {embedding_model}
-            - ChromaDB Path: {chroma_path}
-            - Collection: {collection_name}
-            - Search Limit: {search_limit}
-            - Context Size: {context_size}
-            - Debug Mode: {debug_mode}
-            - Log Level: {log_level}
-            """)
-        
-        # System actions
-        st.subheader("System Actions")
-        
-        col5, col6 = st.columns(2)
-        
-        with col5:
-            if st.button("🔄 Reset Knowledge Base", use_container_width=True):
-                if st.session_state.rag_retriever:
-                    result = st.session_state.rag_retriever.reset_collection()
-                    if result.get("reset"):
-                        st.success("✅ Knowledge base reset")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ Failed to reset: {result.get('error')}")
-                else:
-                    st.error("RAG retriever not initialized")
-        
-        with col6:
-            if st.button("🗑️ Clear Audit History", use_container_width=True):
-                st.session_state.audit_results = []
-                st.session_state.current_audit = None
-                st.success("✅ Audit history cleared")
-                st.rerun()
+                    st.session_state.audit_report = audit_public_website(target_name, target_url, description)
+                except ValueError as exc:
+                    st.error(str(exc))
 
-
-def main():
-    """Main entry point for Streamlit app."""
-    app = StreamlitApp()
-    app.run()
+    if "audit_report" not in st.session_state:
+        st.session_state.audit_report = sample_report()
+    render_dashboard(st.session_state.audit_report)
 
 
 if __name__ == "__main__":

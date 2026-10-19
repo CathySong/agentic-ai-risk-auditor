@@ -43,6 +43,10 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
+`requirements.txt` contains the deployable product MVP dependencies. To work
+on the optional multi-agent, vector search, and browser automation stack, use
+`pip install -r requirements_actual.txt` instead.
+
 Run the API:
 
 ```bash
@@ -54,6 +58,25 @@ Run the Streamlit UI:
 ```bash
 streamlit run ui/streamlit_app.py
 ```
+
+The UI starts with a complete sample report and can run a deterministic audit
+of observable signals on a public website. It produces a versioned report with
+a 0-100 total risk score, category scores, evidence, prioritized findings, and
+JSON/CSV downloads. The public-surface audit does not access private systems or
+replace a legal review, certification, or penetration test.
+
+## Deploy the MVP
+
+The current product MVP is designed for Streamlit Community Cloud:
+
+1. Connect this GitHub repository at https://share.streamlit.io.
+2. Choose `ui/streamlit_app.py` as the entry point.
+3. Use Python 3.11 (also declared in `runtime.txt`).
+4. Deploy. The MVP needs no API keys because the public checks and sample mode
+   are deterministic.
+
+For a later hosted product, keep the long-running audit worker outside Vercel
+and use Vercel for the landing page, account experience, and report frontend.
 
 Run tests:
 

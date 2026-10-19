@@ -114,10 +114,11 @@ def test_ui_structure():
         
         # Check for key components
         checks = [
-            ("StreamlitApp class", "class StreamlitApp" in content),
-            ("render_sidebar method", "def render_sidebar" in content),
-            ("render_dashboard method", "def render_dashboard" in content),
-            ("render_risk_audit method", "def render_risk_audit" in content),
+            ("0-100 risk normalization", "def normalize_risk_score" in content),
+            ("Audit results dashboard", "def render_dashboard" in content),
+            ("Public audit service", "audit_public_website" in content),
+            ("Sample report mode", "sample_report" in content),
+            ("Report downloads", "download_button" in content),
             ("main function", "def main()" in content or "__name__ == \"__main__\"" in content),
         ]
         
