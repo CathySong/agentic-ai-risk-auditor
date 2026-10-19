@@ -6,6 +6,7 @@ Provides web interface for risk assessment and analysis.
 
 import streamlit as st
 import asyncio
+import html
 import json
 import logging
 from typing import Dict, List, Any, Optional
@@ -24,6 +25,32 @@ from rag.retriever import RAGRetriever, DocumentType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def normalize_risk_score(value: Any) -> float:
+    """Return a bounded risk score on a consistent 0-100 scale.
+
+    Older audit payloads stored scores between 0 and 1, while the core auditor
+    returns scores between 0 and 100. Supporting both keeps saved reports useful.
+    """
+    try:
+        score = float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if 0 <= score <= 1:
+        score *= 100
+    return round(max(0.0, min(100.0, score)), 1)
+
+
+def risk_label(score: float) -> tuple[str, str]:
+    """Return the display label and color for a 0-100 risk score."""
+    if score >= 85:
+        return "Critical", "#dc2626"
+    if score >= 70:
+        return "High", "#ea580c"
+    if score >= 30:
+        return "Medium", "#ca8a04"
+    return "Low", "#16a34a"
 
 
 class StreamlitApp:
@@ -174,10 +201,10 @@ class StreamlitApp:
         
         with col2:
             if st.session_state.audit_results:
-                avg_risk = sum(r.get("overall_risk_score", 0) for r in st.session_state.audit_results) / len(st.session_state.audit_results)
-                st.metric("Avg Risk Score", f"{avg_risk:.2f}")
+                avg_risk = sum(normalize_risk_score(r.get("overall_risk_score", 0)) for r in st.session_state.audit_results) / len(st.session_state.audit_results)
+                st.metric("Avg Risk Score", f"{avg_risk:.1f} / 100")
             else:
-                st.metric("Avg Risk Score", "0.00")
+                st.metric("Avg Risk Score", "0 / 100")
         
         with col3:
             if st.session_state.rag_retriever:
@@ -187,7 +214,7 @@ class StreamlitApp:
                 st.metric("Knowledge Docs", "0")
         
         with col4:
-            high_risk = sum(1 for r in st.session_state.audit_results if r.get("overall_risk_score", 0) > 0.7)
+            high_risk = sum(1 for r in st.session_state.audit_results if normalize_risk_score(r.get("overall_risk_score", 0)) >= 70)
             st.metric("High Risk Audits", high_risk)
     
     def render_dashboard(self):
@@ -207,12 +234,13 @@ class StreamlitApp:
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    risk_score = audit.get("overall_risk_score", 0)
-                    risk_level = "🟢 Low" if risk_score < 0.3 else "🟡 Medium" if risk_score < 0.7 else "🔴 High"
+                    risk_score = normalize_risk_score(audit.get("overall_risk_score", 0))
+                    level, _ = risk_label(risk_score)
+                    risk_level = {"Low": "🟢 Low", "Medium": "🟡 Medium", "High": "🟠 High", "Critical": "🔴 Critical"}[level]
                     st.metric("Risk Level", risk_level)
                 
                 with col2:
-                    st.metric("Risk Score", f"{risk_score:.2f}")
+                    st.metric("Risk Score", f"{risk_score:.1f} / 100")
                 
                 with col3:
                     findings = audit.get("findings", [])
@@ -230,12 +258,12 @@ class StreamlitApp:
         st.subheader("Risk Score Distribution")
         
         if len(st.session_state.audit_results) > 1:
-            risk_scores = [r.get("overall_risk_score", 0) for r in st.session_state.audit_results]
+            risk_scores = [normalize_risk_score(r.get("overall_risk_score", 0)) for r in st.session_state.audit_results]
             
             fig = go.Figure(data=[go.Histogram(x=risk_scores, nbinsx=10)])
             fig.update_layout(
                 title="Distribution of Risk Scores",
-                xaxis_title="Risk Score",
+                xaxis_title="Risk Score (0-100)",
                 yaxis_title="Count",
                 showlegend=False
             )
@@ -252,7 +280,7 @@ class StreamlitApp:
                 analysis = audit.get("analysis", {})
                 for cat in categories:
                     if cat in analysis:
-                        category_scores[cat].append(analysis[cat].get("risk_score", 0))
+                        category_scores[cat].append(normalize_risk_score(analysis[cat].get("risk_score", 0)))
             
             avg_scores = {cat: sum(scores)/len(scores) if scores else 0 
                          for cat, scores in category_scores.items()}
@@ -393,119 +421,166 @@ class StreamlitApp:
     def render_audit_details(self, audit: Dict[str, Any]):
         """Render detailed audit results."""
         st.header(f"📋 Audit Results: {audit.get('target_name', 'Unknown')}")
-        
-        # Summary card
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            risk_score = audit.get("overall_risk_score", 0)
-            st.metric("Overall Risk", f"{risk_score:.2f}")
-        
-        with col2:
-            findings = audit.get("findings", [])
-            st.metric("Total Findings", len(findings))
-        
-        with col3:
-            high_risk = sum(1 for f in findings if f.get("risk_level") in ["high", "critical"])
-            st.metric("High Risk", high_risk)
-        
-        with col4:
-            recommendations = audit.get("recommendations", [])
-            st.metric("Recommendations", len(recommendations))
-        
-        # Risk gauge
-        st.subheader("Risk Assessment")
-        
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=risk_score * 100,
-            domain={'x': [0, 1], 'y': [0, 1]},
-            title={'text': "Risk Score"},
-            gauge={
-                'axis': {'range': [0, 100]},
-                'bar': {'color': "darkblue"},
-                'steps': [
-                    {'range': [0, 30], 'color': "green"},
-                    {'range': [30, 70], 'color': "yellow"},
-                    {'range': [70, 100], 'color': "red"}
-                ],
-                'threshold': {
-                    'line': {'color': "black", 'width': 4},
-                    'thickness': 0.75,
-                    'value': risk_score * 100
-                }
-            }
-        ))
-        
-        fig.update_layout(height=300)
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Findings by category
-        st.subheader("Findings by Category")
-        
-        if audit.get("analysis"):
-            categories = list(audit["analysis"].keys())
-            scores = [audit["analysis"][cat].get("risk_score", 0) for cat in categories]
-            
-            df = pd.DataFrame({
-                "Category": categories,
-                "Risk Score": scores
-            })
-            
-            fig = px.bar(df, x="Category", y="Risk Score", 
-                        color="Risk Score", color_continuous_scale="RdYlGn_r")
-            st.plotly_chart(fig, use_container_width=True)
-        
+
+        self.render_output_dashboard(audit)
+
         # Detailed findings
         st.subheader("Detailed Findings")
-        
+
         findings = audit.get("findings", [])
         if findings:
             for i, finding in enumerate(findings, 1):
                 with st.expander(f"🔍 Finding {i}: {finding.get('title', 'Unknown')}"):
                     col1, col2 = st.columns(2)
-                    
+
                     with col1:
-                        risk_level = finding.get("risk_level", "unknown")
+                        risk_level = finding.get("risk_level", finding.get("severity", "unknown"))
                         risk_color = {
                             "low": "🟢",
                             "medium": "🟡", 
                             "high": "🟠",
                             "critical": "🔴"
-                        }.get(risk_level, "⚪")
-                        
-                        st.markdown(f"**Risk Level:** {risk_color} {risk_level.upper()}")
+                        }.get(str(risk_level).lower(), "⚪")
+
+                        st.markdown(f"**Risk Level:** {risk_color} {str(risk_level).upper()}")
                         st.markdown(f"**Category:** {finding.get('category', 'Unknown')}")
-                    
+
                     with col2:
                         st.markdown(f"**Source:** {finding.get('source', 'Unknown')}")
                         if finding.get("evidence"):
                             st.markdown(f"**Evidence:** {finding['evidence'][:100]}...")
-                    
+
                     st.markdown("**Description:**")
                     st.markdown(finding.get("description", "No description available."))
-                    
+
                     if finding.get("recommendations"):
                         st.markdown("**Recommendations:**")
                         for rec in finding["recommendations"]:
                             st.markdown(f"- {rec}")
-        
+        else:
+            st.info("No detailed findings were returned for this audit.")
+
         # Recommendations
         st.subheader("Recommendations")
-        
+
         recommendations = audit.get("recommendations", [])
         if recommendations:
             for i, rec in enumerate(recommendations, 1):
-                st.markdown(f"{i}. **{rec.get('title', 'Recommendation')}**")
-                st.markdown(f"   Priority: {rec.get('priority', 'Medium')}")
-                st.markdown(f"   {rec.get('description', '')}")
+                if isinstance(rec, dict):
+                    st.markdown(f"{i}. **{rec.get('title', 'Recommendation')}**")
+                    st.markdown(f"   Priority: {rec.get('priority', 'Medium')}")
+                    st.markdown(f"   {rec.get('description', '')}")
+                else:
+                    st.markdown(f"{i}. {rec}")
                 st.markdown("---")
         else:
             st.info("No specific recommendations available.")
-        
-        # Export options
+
+        self.render_export_options(audit)
+
+    def render_output_dashboard(self, audit: Dict[str, Any]):
+        """Render a decision-ready dashboard for one completed audit."""
+        findings = audit.get("findings", []) or []
+        recommendations = audit.get("recommendations", []) or []
+        risk_score = normalize_risk_score(audit.get("overall_risk_score", audit.get("risk_score", 0)))
+        level, level_color = risk_label(risk_score)
+        high_risk = sum(
+            1 for finding in findings
+            if str(finding.get("risk_level", finding.get("severity", ""))).lower() in {"high", "critical"}
+        )
+
+        st.markdown(
+            """
+            <style>
+            .audit-output-title {font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:.2rem}
+            .audit-output-summary {border:1px solid #e2e8f0;border-radius:14px;padding:1rem 1.1rem;background:#f8fafc;margin:.4rem 0 1.2rem}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown('<div class="audit-output-title">Audit report dashboard</div>', unsafe_allow_html=True)
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Risk Score", f"{risk_score:.1f} / 100")
+        with col2:
+            st.metric("Risk Level", level)
+        with col3:
+            st.metric("High / Critical", high_risk)
+        with col4:
+            st.metric("Recommendations", len(recommendations))
+
+        summary = audit.get("executive_summary", audit.get("summary", "No executive summary available."))
+        safe_summary = html.escape(str(summary)).replace("\n", "<br>")
+        st.markdown(f'<div class="audit-output-summary"><strong>Executive summary</strong><br>{safe_summary}</div>', unsafe_allow_html=True)
+
+        gauge_col, severity_col = st.columns([1.25, 1])
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=risk_score,
+            domain={'x': [0, 1], 'y': [0, 1]},
+            number={'suffix': " / 100", 'font': {'size': 40}},
+            title={'text': f"{level} risk"},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': level_color},
+                'steps': [
+                    {'range': [0, 30], 'color': "#dcfce7"},
+                    {'range': [30, 70], 'color': "#fef9c3"},
+                    {'range': [70, 85], 'color': "#ffedd5"},
+                    {'range': [85, 100], 'color': "#fee2e2"}
+                ],
+                'threshold': {
+                    'line': {'color': level_color, 'width': 4},
+                    'thickness': 0.75,
+                    'value': risk_score
+                }
+            }
+        ))
+        fig.update_layout(height=320, margin=dict(l=20, r=20, t=55, b=20))
+        with gauge_col:
+            st.plotly_chart(fig, use_container_width=True)
+
+        severity_counts = {level_name: 0 for level_name in ["Critical", "High", "Medium", "Low"]}
+        for finding in findings:
+            severity = str(finding.get("risk_level", finding.get("severity", "low"))).capitalize()
+            if severity in severity_counts:
+                severity_counts[severity] += 1
+        severity_fig = px.pie(
+            names=list(severity_counts.keys()),
+            values=list(severity_counts.values()),
+            hole=.62,
+            color=list(severity_counts.keys()),
+            color_discrete_map={"Critical": "#dc2626", "High": "#ea580c", "Medium": "#ca8a04", "Low": "#16a34a"},
+            title="Findings by severity",
+        )
+        severity_fig.update_layout(height=320, margin=dict(l=20, r=20, t=55, b=20), showlegend=True)
+        with severity_col:
+            if findings:
+                st.plotly_chart(severity_fig, use_container_width=True)
+            else:
+                st.info("No findings available for a severity breakdown.")
+
+        analysis = audit.get("analysis", {}) or {}
+        if analysis:
+            categories = list(analysis.keys())
+            scores = [normalize_risk_score(analysis[cat].get("risk_score", 0)) for cat in categories]
+            df = pd.DataFrame({
+                "Category": categories,
+                "Risk Score": scores
+            })
+            category_fig = px.bar(
+                df, x="Risk Score", y="Category", orientation="h", color="Risk Score",
+                color_continuous_scale="RdYlGn_r", range_color=[0, 100],
+                title="Risk score by category",
+            )
+            category_fig.update_xaxes(range=[0, 100], title="Risk Score (0-100)")
+            category_fig.update_layout(height=max(300, 70 * len(categories)), coloraxis_showscale=False)
+            st.plotly_chart(category_fig, use_container_width=True)
+
+    def render_export_options(self, audit: Dict[str, Any]):
+        """Render report download actions."""
         st.subheader("Export Results")
-        
         col1, col2, col3 = st.columns(3)
         
         with col1:
