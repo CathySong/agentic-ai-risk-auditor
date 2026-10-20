@@ -85,7 +85,7 @@ def render_dashboard(report: Dict[str, Any]) -> None:
     )
 
     cols = st.columns(4)
-    cols[0].metric("Total Risk Score", f"{score:.1f} / 100")
+    cols[0].metric("Risk Exposure Score", f"{score:.1f} / 100", help="Higher means more observable risk. This is not a safety percentage or certification.")
     cols[1].metric("Risk Level", level)
     cols[2].metric("High / Critical", high_count)
     cols[3].metric("Findings", len(findings))
@@ -101,7 +101,7 @@ def render_dashboard(report: Dict[str, Any]) -> None:
     st.markdown(f'<div class="summary"><strong>Executive summary</strong><br>{safe_summary}</div>', unsafe_allow_html=True)
     score_col, category_col, severity_col = st.columns([.8, 1.35, 1.15])
     with score_col:
-        st.markdown(f'<div class="score-panel"><div class="label">OVERALL RISK</div><div class="number">{score:.0f}<span style="font-size:1rem;opacity:.7"> / 100</span></div><span class="level">{level} risk</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="score-panel"><div class="label">RISK EXPOSURE SCORE</div><div class="number">{score:.0f}<span style="font-size:1rem;opacity:.7"> / 100</span></div><span class="level">{level} risk</span><div style="font-size:.72rem;opacity:.72;margin-top:.75rem;line-height:1.4">Higher means more observable risk — not a safety percentage.</div></div>', unsafe_allow_html=True)
     with category_col:
         for name, value in category_scores.items():
             category_score = normalize_risk_score(value)
@@ -129,10 +129,15 @@ def render_dashboard(report: Dict[str, Any]) -> None:
             points_text = f" · +{points} RISK POINTS" if points is not None else ""
             severity_class = severity_raw if severity_raw in {"critical", "high", "medium", "low"} else "low"
             st.markdown(f'<div class="finding"><div class="finding-title"><span class="severity severity-{severity_class}">{severity}</span>{index}. {title}</div><div class="finding-meta">{category}{points_text}</div></div>', unsafe_allow_html=True)
-            with st.expander("Evidence, impact, and recommended action", expanded=index == 1):
-                st.write(finding.get("description", "No description available."))
-                st.markdown(f"**Evidence:** {finding.get('evidence', 'Not provided.')}")
-                st.markdown(f"**Recommended action:** {finding.get('recommendation', 'Review the finding and define an owner.')}")
+            with st.expander("Why this matters and how to fix it", expanded=index == 1):
+                st.markdown(f"**Evidence**  \n{finding.get('evidence', 'Not provided.')}")
+                st.markdown(f"**Risk scenario**  \n{finding.get('risk_scenario', finding.get('description', 'Not provided.'))}")
+                st.markdown(f"**Business impact if left unresolved**  \n{finding.get('business_impact', finding.get('description', 'Not provided.'))}")
+                likelihood = str(finding.get("likelihood", "possible")).title()
+                impact = str(finding.get("impact", "moderate")).title()
+                effort = str(finding.get("remediation_effort", "review")).title()
+                st.markdown(f"**Risk rationale:** Likelihood `{likelihood}` × Impact `{impact}`  \n**Estimated remediation effort:** `{effort}`")
+                st.markdown(f"**Recommended action**  \n{finding.get('recommendation', 'Review the finding and define an owner.')}")
     else:
         st.success("No observable gaps were found in this automated public-surface review.")
 

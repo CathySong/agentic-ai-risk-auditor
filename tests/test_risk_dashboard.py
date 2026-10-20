@@ -48,6 +48,11 @@ def test_sample_report_uses_stable_100_point_contract():
     assert report["category_scores"]
     assert report["findings"]
     assert report["recommendations"]
+    assert all(finding["risk_scenario"] for finding in report["findings"])
+    assert all(finding["business_impact"] for finding in report["findings"])
+    assert all(finding["likelihood"] for finding in report["findings"])
+    assert all(finding["impact"] for finding in report["findings"])
+    assert all(finding["remediation_effort"] for finding in report["findings"])
 
 
 def test_private_hosts_are_rejected(monkeypatch):

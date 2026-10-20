@@ -33,6 +33,26 @@ class Finding:
     evidence: str
     recommendation: str
     source: str
+    risk_scenario: str = "The observed control gap combines with another failure or threat event."
+    business_impact: str = "The issue may affect user trust, operations, security, or compliance obligations."
+    likelihood: str = "possible"
+    impact: str = "moderate"
+    remediation_effort: str = "low"
+
+
+PUBLIC_RISK_CONTEXT = {
+    "SEC-01": ("A user connects over an untrusted network and traffic is intercepted or altered.", "Credentials, personal data, or page content could be exposed or manipulated.", "likely", "severe", "medium"),
+    "SEC-02": ("A visitor is downgraded to HTTP on a first or manipulated visit.", "Session data could be exposed before the browser enforces HTTPS.", "possible", "moderate", "low"),
+    "SEC-03": ("An XSS flaw or compromised third-party script injects code into the page.", "Attackers could read session data, alter content, or redirect users to phishing pages.", "possible", "severe", "medium"),
+    "SEC-04": ("A mislabeled or user-controlled resource is interpreted as executable content.", "A secondary configuration flaw could become a browser-side code execution path.", "unlikely", "minor", "low"),
+    "PRI-01": ("A visitor submits personal data without accessible information about its use.", "The organization may face consent disputes, complaints, and loss of customer trust.", "likely", "severe", "medium"),
+    "PRI-02": ("A visitor submits a form without seeing purpose, consent, or retention context.", "Data collection may conflict with user expectations or privacy requirements.", "possible", "moderate", "low"),
+    "TRA-01": ("A user relies on an automated output without knowing AI is involved.", "Users may over-trust results and the business may face transparency complaints.", "likely", "severe", "low"),
+    "TRA-02": ("An AI-assisted outcome is wrong or harmful and the user cannot reach a human reviewer.", "Unresolved errors can cause customer harm, escalation delays, and reputational damage.", "possible", "moderate", "medium"),
+    "COM-01": ("A dispute occurs and users cannot locate the applicable service conditions.", "Contractual expectations, acceptable use, and liability limits may be harder to enforce.", "possible", "moderate", "medium"),
+    "COM-02": ("Assistive technology guesses the wrong page language.", "Some users may receive incorrect pronunciation or a degraded navigation experience.", "possible", "minor", "low"),
+    "COM-03": ("A user encounters an accessibility barrier without a published support path.", "The business may lose users or procurement opportunities and face compliance complaints.", "possible", "moderate", "medium"),
+}
 
 
 def _normalize_url(value: str) -> str:
@@ -73,7 +93,11 @@ def _finding(
     recommendation: str,
     source: str,
 ) -> Finding:
-    return Finding(finding_id, title, category, severity, points, description, evidence, recommendation, source)
+    context = PUBLIC_RISK_CONTEXT.get(
+        finding_id,
+        ("The observed gap combines with another failure or threat event.", "The issue may affect users, operations, or compliance.", "possible", "moderate", "low"),
+    )
+    return Finding(finding_id, title, category, severity, points, description, evidence, recommendation, source, *context)
 
 
 def _risk_level(score: int) -> str:
@@ -204,12 +228,12 @@ def audit_public_website(
 def sample_report() -> Dict[str, Any]:
     """Return a stable demo report that renders without network or API keys."""
     findings = [
-        Finding("PRI-01", "Sensitive prompts lack a documented retention limit", "privacy", "high", 18, "Conversation content may be retained longer than users expect.", "The sample policy describes collection but provides no deletion window.", "Define purpose-specific retention periods and automate deletion.", "Sample policy review"),
-        Finding("SEC-01", "Prompt-injection controls are incomplete", "security", "high", 17, "Retrieved content can influence tool instructions without a trust boundary.", "Untrusted content is passed into the agent context without isolation metadata.", "Separate instructions from retrieved data and add tool authorization checks.", "Sample architecture review"),
-        Finding("TRA-01", "Users are not told when content is AI-generated", "transparency", "medium", 12, "Users may treat generated guidance as verified human advice.", "No visible AI disclosure appears in the sample user flow.", "Add contextual disclosure and identify high-impact limitations.", "Sample UX review"),
-        Finding("COM-01", "Human oversight evidence is incomplete", "compliance", "medium", 10, "Review ownership and escalation criteria are not documented.", "The sample governance record has no named reviewer or escalation SLA.", "Assign accountable owners and document review triggers.", "Sample governance review"),
-        Finding("SEC-02", "Audit logging omits tool authorization decisions", "security", "medium", 9, "Investigators cannot reconstruct why a sensitive action was allowed.", "Tool calls are logged, but policy decisions are not.", "Log policy inputs, decision outcome, actor, and correlation ID.", "Sample logging review"),
-        Finding("PRI-02", "Vendor data-use terms need verification", "privacy", "low", 6, "Third-party model handling may not match the stated privacy posture.", "The sample vendor register has no current DPA review date.", "Review DPAs and record training, retention, and region commitments.", "Sample vendor review"),
+        Finding("PRI-01", "Sensitive prompts lack a documented retention limit", "privacy", "high", 18, "Conversation content may be retained longer than users expect.", "The sample policy describes collection but provides no deletion window.", "Define purpose-specific retention periods and automate deletion.", "Sample policy review", "Sensitive prompts remain stored beyond their legitimate purpose.", "Personal or confidential data may be exposed, misused, or retained unlawfully.", "likely", "severe", "medium"),
+        Finding("SEC-01", "Prompt-injection controls are incomplete", "security", "high", 17, "Retrieved content can influence tool instructions without a trust boundary.", "Untrusted content is passed into the agent context without isolation metadata.", "Separate instructions from retrieved data and add tool authorization checks.", "Sample architecture review", "Malicious retrieved content instructs the agent to misuse a connected tool.", "The agent could disclose data or perform an unauthorized action.", "possible", "severe", "high"),
+        Finding("TRA-01", "Users are not told when content is AI-generated", "transparency", "medium", 12, "Users may treat generated guidance as verified human advice.", "No visible AI disclosure appears in the sample user flow.", "Add contextual disclosure and identify high-impact limitations.", "Sample UX review", "A user relies on generated advice without knowing its automated origin.", "Incorrect guidance may cause customer harm and erode trust.", "likely", "moderate", "low"),
+        Finding("COM-01", "Human oversight evidence is incomplete", "compliance", "medium", 10, "Review ownership and escalation criteria are not documented.", "The sample governance record has no named reviewer or escalation SLA.", "Assign accountable owners and document review triggers.", "Sample governance review", "A harmful or disputed output has no accountable reviewer or response deadline.", "Issues may remain unresolved and governance obligations may not be demonstrable.", "possible", "moderate", "medium"),
+        Finding("SEC-02", "Audit logging omits tool authorization decisions", "security", "medium", 9, "Investigators cannot reconstruct why a sensitive action was allowed.", "Tool calls are logged, but policy decisions are not.", "Log policy inputs, decision outcome, actor, and correlation ID.", "Sample logging review", "A sensitive tool action is disputed after the policy decision context has been lost.", "Incident response and accountability may be delayed or inconclusive.", "possible", "moderate", "medium"),
+        Finding("PRI-02", "Vendor data-use terms need verification", "privacy", "low", 6, "Third-party model handling may not match the stated privacy posture.", "The sample vendor register has no current DPA review date.", "Review DPAs and record training, retention, and region commitments.", "Sample vendor review", "A vendor retains or uses submitted data differently from customer-facing promises.", "The business may face contractual, privacy, and customer-trust consequences.", "unlikely", "moderate", "low"),
     ]
     categories = {"privacy": 72.0, "security": 76.0, "transparency": 55.0, "compliance": 61.0}
     return {
