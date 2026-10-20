@@ -63,7 +63,7 @@ def inject_styles() -> None:
         .finding{border:1px solid #f0f0f0;border-radius:10px;padding:1rem 1.1rem;margin:.65rem 0;background:white;box-shadow:0 1px 2px rgba(0,0,0,.025)}.finding-title{font-weight:650;color:#262626}.finding-meta{font-size:.75rem;color:#8c8c8c;margin-top:.25rem;text-transform:uppercase;letter-spacing:.035em}
         .severity{display:inline-block;padding:.15rem .48rem;border-radius:999px;font-weight:700;margin-right:.35rem}.severity-critical{background:#fff1f0;color:#cf1322}.severity-high{background:#fff2e8;color:#d4380d}.severity-medium{background:#fffbe6;color:#d48806}.severity-low{background:#f6ffed;color:#389e0d}
         .disclaimer{font-size:.8rem;color:#64748b;border-top:1px solid #e2e8f0;padding-top:1rem;margin-top:2rem}
-        div[data-baseweb="tab-list"]{gap:.25rem;background:#fff;border:1px solid #f0f0f0;border-radius:10px 10px 0 0;padding:.35rem .55rem}
+        .report-section{margin:1.65rem 0 .7rem;padding-top:.2rem}.report-section-title{font-size:1.18rem;font-weight:650;color:#1f1f1f}.report-section-copy{font-size:.82rem;color:#8c8c8c;margin-top:.15rem}
         @media(max-width:700px){.hero{align-items:flex-start;flex-direction:column}.hero-badge{white-space:normal}.block-container{padding-left:.8rem;padding-right:.8rem}}
         </style>
         """,
@@ -95,61 +95,61 @@ def render_dashboard(report: Dict[str, Any]) -> None:
         for key, value in (report.get("analysis", {}) or {}).items()
         if isinstance(value, dict)
     }
-    overview_tab, findings_tab, remediation_tab = st.tabs(["Overview", f"Findings ({len(findings)})", "Remediation"])
+    st.markdown('<div class="report-section"><div class="report-section-title">Overview</div><div class="report-section-copy">At-a-glance risk posture and category distribution</div></div>', unsafe_allow_html=True)
+    summary = report.get("executive_summary", report.get("summary", "No summary available."))
+    safe_summary = html.escape(str(summary)).replace("\n", "<br>")
+    st.markdown(f'<div class="summary"><strong>Executive summary</strong><br>{safe_summary}</div>', unsafe_allow_html=True)
+    score_col, category_col, severity_col = st.columns([.8, 1.35, 1.15])
+    with score_col:
+        st.markdown(f'<div class="score-panel"><div class="label">OVERALL RISK</div><div class="number">{score:.0f}<span style="font-size:1rem;opacity:.7"> / 100</span></div><span class="level">{level} risk</span></div>', unsafe_allow_html=True)
+    with category_col:
+        for name, value in category_scores.items():
+            category_score = normalize_risk_score(value)
+            _, bar_color = risk_label(category_score)
+            st.markdown(f'<div class="category-card"><div class="category-row"><span class="category-name">{html.escape(str(name).title())}</span><span class="category-value">{category_score:.1f} / 100</span></div><div class="progress-track"><div class="progress-fill" style="width:{category_score}%;background:{bar_color}"></div></div></div>', unsafe_allow_html=True)
+    severity_names = ["Critical", "High", "Medium", "Low"]
+    severity_values = [sum(1 for item in findings if str(item.get("severity", item.get("risk_level", "low"))).capitalize() == name) for name in severity_names]
+    with severity_col:
+        if sum(severity_values):
+            chart = px.pie(names=severity_names, values=severity_values, hole=.7, color=severity_names, color_discrete_map={"Critical":"#cf1322","High":"#d4380d","Medium":"#d48806","Low":"#389e0d"})
+            chart.update_traces(textposition="inside", textinfo="value")
+            chart.update_layout(height=245, margin=dict(l=8, r=8, t=22, b=8), showlegend=True, legend=dict(orientation="h", y=-.1), annotations=[dict(text="Severity", x=.5, y=.5, font_size=13, showarrow=False)])
+            st.plotly_chart(chart, use_container_width=True, config={"displayModeBar": False})
+        else:
+            st.success("No risk findings were generated.")
 
-    with overview_tab:
-        summary = report.get("executive_summary", report.get("summary", "No summary available."))
-        safe_summary = html.escape(str(summary)).replace("\n", "<br>")
-        st.markdown(f'<div class="summary"><strong>Executive summary</strong><br>{safe_summary}</div>', unsafe_allow_html=True)
-        score_col, category_col, severity_col = st.columns([.8, 1.35, 1.15])
-        with score_col:
-            st.markdown(f'<div class="score-panel"><div class="label">OVERALL RISK</div><div class="number">{score:.0f}<span style="font-size:1rem;opacity:.7"> / 100</span></div><span class="level">{level} risk</span></div>', unsafe_allow_html=True)
-        with category_col:
-            for name, value in category_scores.items():
-                category_score = normalize_risk_score(value)
-                _, bar_color = risk_label(category_score)
-                st.markdown(f'<div class="category-card"><div class="category-row"><span class="category-name">{html.escape(str(name).title())}</span><span class="category-value">{category_score:.1f} / 100</span></div><div class="progress-track"><div class="progress-fill" style="width:{category_score}%;background:{bar_color}"></div></div></div>', unsafe_allow_html=True)
-        severity_names = ["Critical", "High", "Medium", "Low"]
-        severity_values = [sum(1 for item in findings if str(item.get("severity", item.get("risk_level", "low"))).capitalize() == name) for name in severity_names]
-        with severity_col:
-            if sum(severity_values):
-                chart = px.pie(names=severity_names, values=severity_values, hole=.7, color=severity_names, color_discrete_map={"Critical":"#cf1322","High":"#d4380d","Medium":"#d48806","Low":"#389e0d"})
-                chart.update_traces(textposition="inside", textinfo="value")
-                chart.update_layout(height=245, margin=dict(l=8, r=8, t=22, b=8), showlegend=True, legend=dict(orientation="h", y=-.1), annotations=[dict(text="Severity", x=.5, y=.5, font_size=13, showarrow=False)])
-                st.plotly_chart(chart, use_container_width=True, config={"displayModeBar": False})
+    st.markdown(f'<div class="report-section"><div class="report-section-title">Findings <span style="color:#8c8c8c;font-weight:500">({len(findings)})</span></div><div class="report-section-copy">Prioritized evidence and recommended corrective action</div></div>', unsafe_allow_html=True)
+    if findings:
+        for index, finding in enumerate(findings, 1):
+            title = html.escape(str(finding.get("title", f"Finding {index}")))
+            severity_raw = str(finding.get("severity", finding.get("risk_level", "unknown"))).lower()
+            severity = html.escape(severity_raw.upper())
+            category = html.escape(str(finding.get("category", "other")).upper())
+            points = finding.get("risk_points")
+            points_text = f" · +{points} RISK POINTS" if points is not None else ""
+            severity_class = severity_raw if severity_raw in {"critical", "high", "medium", "low"} else "low"
+            st.markdown(f'<div class="finding"><div class="finding-title"><span class="severity severity-{severity_class}">{severity}</span>{index}. {title}</div><div class="finding-meta">{category}{points_text}</div></div>', unsafe_allow_html=True)
+            with st.expander("Evidence, impact, and recommended action", expanded=index == 1):
+                st.write(finding.get("description", "No description available."))
+                st.markdown(f"**Evidence:** {finding.get('evidence', 'Not provided.')}")
+                st.markdown(f"**Recommended action:** {finding.get('recommendation', 'Review the finding and define an owner.')}")
+    else:
+        st.success("No observable gaps were found in this automated public-surface review.")
+
+    st.markdown('<div class="report-section"><div class="report-section-title">Remediation plan</div><div class="report-section-copy">Actions ordered by risk priority</div></div>', unsafe_allow_html=True)
+    if recommendations:
+        for index, item in enumerate(recommendations, 1):
+            if isinstance(item, dict):
+                priority = html.escape(str(item.get("priority", "review")).upper())
+                st.markdown(f"**{index}. {item.get('title', 'Recommendation')}**  ·  `{priority}`")
+                st.write(item.get("description", ""))
+                st.divider()
             else:
-                st.success("No risk findings were generated.")
+                st.markdown(f"{index}. {item}")
+    else:
+        st.info("No remediation actions are currently required.")
 
-    with findings_tab:
-        if findings:
-            for index, finding in enumerate(findings, 1):
-                title = html.escape(str(finding.get("title", f"Finding {index}")))
-                severity_raw = str(finding.get("severity", finding.get("risk_level", "unknown"))).lower()
-                severity = html.escape(severity_raw.upper())
-                category = html.escape(str(finding.get("category", "other")).upper())
-                points = finding.get("risk_points")
-                points_text = f" · +{points} RISK POINTS" if points is not None else ""
-                severity_class = severity_raw if severity_raw in {"critical", "high", "medium", "low"} else "low"
-                st.markdown(f'<div class="finding"><div class="finding-title"><span class="severity severity-{severity_class}">{severity}</span>{index}. {title}</div><div class="finding-meta">{category}{points_text}</div></div>', unsafe_allow_html=True)
-                with st.expander("Evidence, impact, and recommended action", expanded=index == 1):
-                    st.write(finding.get("description", "No description available."))
-                    st.markdown(f"**Evidence:** {finding.get('evidence', 'Not provided.')}")
-                    st.markdown(f"**Recommended action:** {finding.get('recommendation', 'Review the finding and define an owner.')}")
-        else:
-            st.success("No observable gaps were found in this automated public-surface review.")
-
-    with remediation_tab:
-        if recommendations:
-            for index, item in enumerate(recommendations, 1):
-                if isinstance(item, dict):
-                    priority = html.escape(str(item.get("priority", "review")).upper())
-                    st.markdown(f"**{index}. {item.get('title', 'Recommendation')}**  ·  `{priority}`")
-                    st.write(item.get("description", ""))
-                    st.divider()
-                else:
-                    st.markdown(f"{index}. {item}")
-        else:
-            st.info("No remediation actions are currently required.")
+    st.markdown('<div class="report-section"><div class="report-section-title">Export report</div><div class="report-section-copy">Download the complete result or findings data</div></div>', unsafe_allow_html=True)
 
     json_payload = json.dumps(report, indent=2, default=str)
     findings_csv = pd.DataFrame(findings).to_csv(index=False) if findings else ""
