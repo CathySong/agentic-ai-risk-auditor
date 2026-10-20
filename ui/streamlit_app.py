@@ -68,17 +68,17 @@ def inject_styles() -> None:
         .hero h1{font-size:1.65rem;line-height:1.25;margin:.18rem 0 .35rem;letter-spacing:-.025em;color:#1f1f1f}.hero p{color:#667085;font-size:.92rem;line-height:1.5;margin:0}
         .hero-badge{white-space:nowrap;background:#e6f4ff;color:#0958d9;border:1px solid #91caff;border-radius:999px;padding:.42rem .75rem;font-size:.78rem;font-weight:650}
         .report-identity{display:flex;justify-content:space-between;align-items:center;gap:1.5rem;margin:1.5rem 0 1rem;padding:1.25rem 1.4rem;background:#fff;border:1px solid #d9d9d9;border-left:5px solid #1677ff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
-        .identity-eyebrow{font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:#1677ff;font-weight:750;margin-bottom:.28rem}.identity-name{font-size:1.55rem;line-height:1.25;font-weight:700;color:#141414;letter-spacing:-.025em}.identity-url{font-size:.84rem;color:#667085;margin-top:.3rem}.identity-meta{text-align:right;color:#8c8c8c;font-size:.76rem;line-height:1.55;white-space:nowrap}
+        .identity-eyebrow{font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:#1677ff;font-weight:750;margin-bottom:.28rem}.identity-name{font-size:1.55rem;line-height:1.25;font-weight:700;color:#141414;letter-spacing:-.025em}.identity-url{font-size:.84rem;color:#667085;margin-top:.3rem}.identity-meta{text-align:right;color:#8c8c8c;font-size:.76rem;line-height:1.55;white-space:nowrap}.identity-risk{display:inline-block;margin-top:.4rem;padding:.2rem .55rem;border-radius:99px;font-weight:750}
         .summary{border:1px solid #bae0ff;border-radius:10px;padding:1rem 1.15rem;background:#e6f4ff;margin:.5rem 0 1rem;line-height:1.6;color:#1f1f1f}
-        .score-panel{height:100%;min-height:170px;border-radius:10px;padding:1.15rem 1.25rem;color:#fff;background:linear-gradient(135deg,#1677ff,#10239e);box-shadow:0 5px 18px rgba(22,119,255,.18)}
+        .score-panel{height:100%;min-height:170px;border-radius:10px;padding:1.15rem 1.25rem;color:#fff}.risk-low{background:linear-gradient(135deg,#52c41a,#237804);box-shadow:0 6px 20px rgba(82,196,26,.22)}.risk-medium{background:linear-gradient(135deg,#fadb14,#d48806);box-shadow:0 6px 20px rgba(250,173,20,.22);color:#3d2b00}.risk-high{background:linear-gradient(135deg,#fa8c16,#d4380d);box-shadow:0 6px 20px rgba(250,140,22,.22)}.risk-critical{background:linear-gradient(135deg,#ff4d4f,#a8071a);box-shadow:0 6px 20px rgba(255,77,79,.22)}
         .score-panel .label{font-size:.8rem;opacity:.8}.score-panel .number{font-size:3rem;line-height:1.1;font-weight:700;margin:.55rem 0 .25rem;letter-spacing:-.05em}.score-panel .level{display:inline-block;border-radius:999px;padding:.24rem .58rem;background:rgba(255,255,255,.16);font-size:.75rem;font-weight:650}
         .category-card{background:#fff;border:1px solid #f0f0f0;border-radius:10px;padding:1rem 1.1rem;margin-bottom:.65rem}.category-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:.45rem;font-size:.87rem}.category-name{font-weight:600;color:#262626}.category-value{color:#595959;font-variant-numeric:tabular-nums}
         .progress-track{height:7px;border-radius:99px;background:#f0f0f0;overflow:hidden}.progress-fill{height:100%;border-radius:99px}
         .finding{border:1px solid #f0f0f0;border-radius:10px;padding:1rem 1.1rem;margin:.65rem 0;background:white;box-shadow:0 1px 2px rgba(0,0,0,.025)}.finding-title{font-weight:650;color:#262626}.finding-meta{font-size:.75rem;color:#8c8c8c;margin-top:.25rem;text-transform:uppercase;letter-spacing:.035em}
         .severity{display:inline-block;padding:.15rem .48rem;border-radius:999px;font-weight:700;margin-right:.35rem}.severity-critical{background:#fff1f0;color:#cf1322}.severity-high{background:#fff2e8;color:#d4380d}.severity-medium{background:#fffbe6;color:#d48806}.severity-low{background:#f6ffed;color:#389e0d}
         .disclaimer{font-size:.8rem;color:#64748b;border-top:1px solid #e2e8f0;padding-top:1rem;margin-top:2rem}
-        .report-section{display:flex;align-items:center;gap:.9rem;margin:2.35rem 0 1rem;padding:.9rem 1.05rem;background:#fff;border:1px solid #e8e8e8;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.025)}
-        .section-index{display:flex;align-items:center;justify-content:center;flex:0 0 34px;height:34px;border-radius:9px;background:#1677ff;color:#fff;font-size:.76rem;font-weight:750;letter-spacing:.03em}.report-section-title{font-size:1.28rem;line-height:1.25;font-weight:700;color:#141414;letter-spacing:-.015em}.report-section-copy{font-size:.82rem;color:#8c8c8c;margin-top:.2rem}
+        .report-section{display:flex;align-items:center;gap:.9rem;margin:2.35rem 0 1rem;padding:1rem 1.05rem;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.025)}.section-overview{background:#e6f4ff;border:1px solid #91caff}.section-findings{background:#fff7e6;border:1px solid #ffd591}.section-remediation{background:#f6ffed;border:1px solid #b7eb8f}.section-export{background:#f9f0ff;border:1px solid #d3adf7}
+        .section-index{display:flex;align-items:center;justify-content:center;flex:0 0 34px;height:34px;border-radius:9px;color:#fff;font-size:.76rem;font-weight:750;letter-spacing:.03em}.section-overview .section-index{background:#1677ff}.section-findings .section-index{background:#fa8c16}.section-remediation .section-index{background:#52c41a}.section-export .section-index{background:#722ed1}.report-section-title{font-size:1.28rem;line-height:1.25;font-weight:700;color:#141414;letter-spacing:-.015em}.report-section-copy{font-size:.82rem;color:#595959;margin-top:.2rem}
         @media(max-width:700px){.hero,.report-identity{align-items:flex-start;flex-direction:column}.hero-badge{white-space:normal}.identity-meta{text-align:left}.block-container{padding-left:.8rem;padding-right:.8rem}}
         </style>
         """,
@@ -95,7 +95,7 @@ def render_dashboard(report: Dict[str, Any]) -> None:
     target_name = html.escape(str(report.get("target_name", "Audit result")))
     target_url = html.escape(str(report.get("target_url", "")))
     st.markdown(
-        f'<div class="report-identity"><div><div class="identity-eyebrow">Audit report</div><div class="identity-name">{target_name}</div><div class="identity-url">{target_url}</div></div><div class="identity-meta">PUBLIC SURFACE AUDIT<br>Methodology v{html.escape(str(report.get("methodology_version", "1.0")))}</div></div>',
+        f'<div class="report-identity"><div><div class="identity-eyebrow">Audit report</div><div class="identity-name">{target_name}</div><div class="identity-url">{target_url}</div></div><div class="identity-meta">PUBLIC SURFACE AUDIT<br>Methodology v{html.escape(str(report.get("methodology_version", "1.0")))}<br><span class="identity-risk risk-{level.lower()}">{level.upper()} RISK</span></div></div>',
         unsafe_allow_html=True,
     )
 
@@ -110,13 +110,13 @@ def render_dashboard(report: Dict[str, Any]) -> None:
         for key, value in (report.get("analysis", {}) or {}).items()
         if isinstance(value, dict)
     }
-    st.markdown('<div class="report-section"><div class="section-index">01</div><div><div class="report-section-title">Overview</div><div class="report-section-copy">At-a-glance risk posture and category distribution</div></div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="report-section section-overview"><div class="section-index">01</div><div><div class="report-section-title">Overview</div><div class="report-section-copy">At-a-glance risk posture and category distribution</div></div></div>', unsafe_allow_html=True)
     summary = report.get("executive_summary", report.get("summary", "No summary available."))
     safe_summary = html.escape(str(summary)).replace("\n", "<br>")
     st.markdown(f'<div class="summary"><strong>Executive summary</strong><br>{safe_summary}</div>', unsafe_allow_html=True)
     score_col, category_col, severity_col = st.columns([.8, 1.35, 1.15])
     with score_col:
-            st.markdown(f'<div class="score-panel"><div class="label">RISK EXPOSURE SCORE</div><div class="number">{score:.0f}<span style="font-size:1rem;opacity:.7"> / 100</span></div><span class="level">{level} risk</span><div style="font-size:.72rem;opacity:.72;margin-top:.75rem;line-height:1.4">Higher means more observable risk — not a safety percentage.</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="score-panel risk-{level.lower()}"><div class="label">RISK EXPOSURE SCORE</div><div class="number">{score:.0f}<span style="font-size:1rem;opacity:.7"> / 100</span></div><span class="level">{level} risk</span><div style="font-size:.72rem;opacity:.78;margin-top:.75rem;line-height:1.4">Higher means more observable risk — not a safety percentage.</div></div>', unsafe_allow_html=True)
     with category_col:
         for name, value in category_scores.items():
             category_score = normalize_risk_score(value)
@@ -133,7 +133,7 @@ def render_dashboard(report: Dict[str, Any]) -> None:
         else:
             st.success("No risk findings were generated.")
 
-    st.markdown(f'<div class="report-section"><div class="section-index">02</div><div><div class="report-section-title">Findings <span style="color:#8c8c8c;font-weight:500">({len(findings)})</span></div><div class="report-section-copy">Prioritized evidence and recommended corrective action</div></div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="report-section section-findings"><div class="section-index">02</div><div><div class="report-section-title">Findings <span style="color:#8c8c8c;font-weight:500">({len(findings)})</span></div><div class="report-section-copy">Prioritized evidence and recommended corrective action</div></div></div>', unsafe_allow_html=True)
     if findings:
         for index, finding in enumerate(findings, 1):
             title = html.escape(str(finding.get("title", f"Finding {index}")))
@@ -156,7 +156,7 @@ def render_dashboard(report: Dict[str, Any]) -> None:
     else:
         st.success("No observable gaps were found in this automated public-surface review.")
 
-    st.markdown('<div class="report-section"><div class="section-index">03</div><div><div class="report-section-title">Remediation plan</div><div class="report-section-copy">Actions ordered by risk priority</div></div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="report-section section-remediation"><div class="section-index">03</div><div><div class="report-section-title">Remediation plan</div><div class="report-section-copy">Actions ordered by risk priority</div></div></div>', unsafe_allow_html=True)
     if recommendations:
         for index, item in enumerate(recommendations, 1):
             if isinstance(item, dict):
@@ -169,7 +169,7 @@ def render_dashboard(report: Dict[str, Any]) -> None:
     else:
         st.info("No remediation actions are currently required.")
 
-    st.markdown('<div class="report-section"><div class="section-index">04</div><div><div class="report-section-title">Export report</div><div class="report-section-copy">Download the complete result or findings data</div></div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="report-section section-export"><div class="section-index">04</div><div><div class="report-section-title">Export report</div><div class="report-section-copy">Download the complete result or findings data</div></div></div>', unsafe_allow_html=True)
 
     json_payload = json.dumps(report, indent=2, default=str)
     findings_csv = pd.DataFrame(findings).to_csv(index=False) if findings else ""
