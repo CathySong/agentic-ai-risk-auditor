@@ -9,6 +9,8 @@ def test_dashboard_renders_product_hierarchy_without_exceptions():
 
     assert not app.exception
     assert not app.tabs
+    assert [select.label for select in app.selectbox] == ["System type"]
+    assert app.selectbox[0].value == "Select a system type"
     assert [metric.value for metric in app.metric] == [
         "72.0 / 100",
         "High",

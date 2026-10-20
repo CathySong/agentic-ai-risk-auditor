@@ -20,6 +20,19 @@ import streamlit as st
 from app.audit_service import audit_public_website, sample_report
 
 
+SYSTEM_TYPES = {
+    "Select a system type": "",
+    "Portfolio / brochure website": "",
+    "SaaS or e-commerce website (no AI)": "",
+    "AI chatbot or copilot": "AI chatbot or copilot that generates user-facing responses.",
+    "AI agent or automated workflow": "AI agent that uses tools or automates a multi-step workflow.",
+    "AI search, recommendation, or ranking": "AI system that searches, recommends, scores, or ranks results.",
+    "AI content generation tool": "AI system that generates text, images, audio, video, or code.",
+    "High-impact automated decision system": "AI system that supports or makes decisions affecting people.",
+    "Other AI-enabled product": "AI-enabled product or service.",
+}
+
+
 def normalize_risk_score(value: Any) -> float:
     try:
         score = float(value or 0)
@@ -180,16 +193,26 @@ def main() -> None:
         col_a, col_b = st.columns(2)
         target_name = col_a.text_input("Product or system name", placeholder="Acme Support Copilot")
         target_url = col_b.text_input("Public website", placeholder="https://example.com")
-        description = st.text_area("How does the system use AI?", placeholder="Customer-support assistant that retrieves account data and drafts responses.", height=80)
+        system_type = st.selectbox(
+            "System type",
+            options=list(SYSTEM_TYPES),
+            help="This sets the audit scope so a portfolio is not judged like an AI decision system.",
+        )
+        additional_context = st.text_input(
+            "Additional context (optional)",
+            placeholder="Example: Uses customer account data to draft support replies.",
+        )
         submitted = st.form_submit_button("Run risk audit", type="primary", use_container_width=True)
     demo_col, note_col = st.columns([1, 3])
     if demo_col.button("View sample report", use_container_width=True):
         st.session_state.audit_report = sample_report()
     note_col.caption("This MVP checks observable public signals. It does not access private systems or perform penetration testing.")
     if submitted:
-        if not target_name.strip() or not target_url.strip():
-            st.error("Enter both a product name and a public website.")
+        if not target_name.strip() or not target_url.strip() or system_type == "Select a system type":
+            st.error("Enter a product name and public website, then select a system type.")
         else:
+            base_description = SYSTEM_TYPES[system_type]
+            description = " ".join(part for part in [base_description, additional_context.strip()] if part).strip() if base_description else ""
             with st.spinner("Reading the public page and calculating risk…"):
                 try:
                     st.session_state.audit_report = audit_public_website(target_name, target_url, description)
