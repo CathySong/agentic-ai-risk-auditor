@@ -154,6 +154,10 @@ def audit_public_website(
     link_text = " ".join(item.get_text(" ", strip=True).lower() for item in soup.find_all("a"))
     headers = {key.lower(): value for key, value in response.headers.items()}
     findings: List[Finding] = []
+    has_form = soup.find("form") is not None
+    interactive_terms = ["sign in", "log in", "sign up", "create account", "checkout", "add to cart", "subscribe"]
+    has_account_or_transaction = any(term in text for term in interactive_terms)
+    collects_or_transacts = has_form or has_account_or_transaction
 
     if urlparse(final_url).scheme != "https":
         findings.append(_finding("SEC-01", "Website is not protected by HTTPS", "security", "critical", 18, "Traffic can be intercepted or modified in transit.", final_url, "Redirect all traffic to HTTPS and enable HSTS.", final_url))
@@ -165,20 +169,20 @@ def audit_public_website(
         findings.append(_finding("SEC-04", "MIME sniffing protection is missing", "security", "low", 5, "Browsers may infer content types instead of honoring declared types.", "X-Content-Type-Options header not found.", "Set X-Content-Type-Options: nosniff.", final_url))
 
     has_privacy = "privacy" in link_text or any("privacy" in link.lower() for link in links)
-    if not has_privacy:
+    if collects_or_transacts and not has_privacy:
         findings.append(_finding("PRI-01", "No visible privacy notice", "privacy", "high", 15, "Visitors cannot easily find how personal data is collected, used, or retained.", "No privacy-labeled link was found on the audited page.", "Publish and prominently link a privacy notice covering data use, retention, vendors, and user rights.", final_url))
-    if soup.find("form") and not any(term in text for term in ["consent", "privacy", "data use"]):
+    if has_form and not any(term in text for term in ["consent", "privacy", "data use"]):
         findings.append(_finding("PRI-02", "Data collection form lacks nearby privacy context", "privacy", "medium", 10, "The page collects user input without an obvious explanation of data handling.", "A form was found without nearby consent or privacy language.", "Add concise data-use and consent language beside every collection form.", final_url))
 
     ai_terms = ["artificial intelligence", " ai ", "machine learning", "automated decision", "language model", "llm"]
     describes_ai = any(term in f" {text} " for term in ai_terms)
     if system_description.strip() and not describes_ai:
         findings.append(_finding("TRA-01", "AI use is not clearly disclosed", "transparency", "high", 12, "The submitted system is described as AI-enabled, but the public page does not clearly disclose AI use.", "No clear AI or automated-system disclosure was found in visible page text.", "Explain where AI is used, what it does, and where human review applies.", final_url))
-    if describes_ai and not any(term in text for term in ["human review", "human oversight", "appeal", "contact us"]):
+    if describes_ai and collects_or_transacts and not any(term in text for term in ["human review", "human oversight", "appeal", "contact us"]):
         findings.append(_finding("TRA-02", "Human oversight path is unclear", "transparency", "medium", 8, "Users may not know how to question or escalate an AI-assisted outcome.", "AI-related language was found without a clear human review or appeal path.", "Document a human escalation, review, or appeal channel.", final_url))
 
     has_terms = "terms" in link_text or any("terms" in link.lower() for link in links)
-    if not has_terms:
+    if has_account_or_transaction and not has_terms:
         findings.append(_finding("COM-01", "Terms of use are not visible", "compliance", "medium", 8, "Public usage conditions and limitations are not easy to locate.", "No terms-labeled link was found on the audited page.", "Publish and link terms of use appropriate to the service and jurisdiction.", final_url))
     if not soup.html or not soup.html.get("lang"):
         findings.append(_finding("COM-02", "Page language is not declared", "compliance", "low", 3, "Assistive technology may have less context for pronunciation and interpretation.", "The HTML lang attribute is missing.", "Add the primary language to the root HTML element.", final_url))

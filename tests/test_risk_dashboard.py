@@ -63,3 +63,34 @@ def test_private_hosts_are_rejected(monkeypatch):
     )
     with pytest.raises(ValueError, match="private network"):
         audit_service.audit_public_website("Local", "http://internal.example")
+
+
+def test_static_portfolio_does_not_receive_saas_scope_findings(monkeypatch):
+    class Response:
+        url = "https://portfolio.example/"
+        content = b'<html lang="en"><body><h1>AI consultant</h1><a href="mailto:hello@example.com">Contact</a></body></html>'
+        text = content.decode()
+        headers = {
+            "content-type": "text/html",
+            "strict-transport-security": "max-age=31536000",
+            "content-security-policy": "default-src 'self'",
+            "x-content-type-options": "nosniff",
+        }
+
+        @staticmethod
+        def raise_for_status():
+            return None
+
+    monkeypatch.setattr(
+        audit_service.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [(None, None, None, None, ("93.184.216.34", 0))],
+    )
+    monkeypatch.setattr(audit_service.requests, "get", lambda *_args, **_kwargs: Response())
+
+    report = audit_service.audit_public_website("Portfolio", "https://portfolio.example")
+    finding_ids = {finding["id"] for finding in report["findings"]}
+
+    assert "PRI-01" not in finding_ids
+    assert "TRA-02" not in finding_ids
+    assert "COM-01" not in finding_ids
